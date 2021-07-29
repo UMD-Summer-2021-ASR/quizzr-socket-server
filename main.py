@@ -56,6 +56,7 @@ def start_game(json, methods=['GET', 'POST']):
 
 @socketio.on('getstate')
 def get_state(json, methods=['GET', 'POST']):
+    print(games[json['lobby']].gamestate())
     emit('gamestate', games[json['lobby']].gamestate(), to=json['lobby'])
 
 
