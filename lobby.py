@@ -22,5 +22,7 @@ class Lobby:
     # Adds player to lobby
     def join(self, username):
         # Check does not exceed max players
-        #
+        if len(self.players) >= self.max_players:
+            return False
         self.players.append(username)
+        return True
