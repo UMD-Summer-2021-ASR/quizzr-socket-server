@@ -36,7 +36,7 @@ class Game:
     # round #, question #, question time remaining, buzz time remaining, gap time remaining
     def gamestate(self):
         if not self.active_game: # game is over
-            return [self.active_game, 0, 0, 0, 0, 0]
+            return [self.active_game, 0, 0, 0, 0, 0, 0, self.points]
         if self.active_gap[0]:  # between questions
             # if gap time is over, move to question
             if self.get_gap_time() < 0:
@@ -46,6 +46,7 @@ class Game:
         if self.active_buzz[0]:  # in a buzz
             # if buzz time is over, keep going through question
             if self.get_buzz_time() < 0:
+                self.points[self.active_buzz[3]] -= 5
                 self.active_question[1] = self.active_question[1] + self.buzz_time
                 self.active_buzz = [False, 0, 0]
                 self.buzzer = ''
@@ -75,7 +76,7 @@ class Game:
         else:
             self.buzzer = username
             self.active_buzz = [True, time.time(), self.get_question_time(), username]
-            self.recording[self.round-1][self.question-1].append([self.active_buzz[2], username])
+            self.recording[self.round-1][self.question-1].append(['buzz', self.active_buzz[2], username])
             print(self.active_buzz[2])
             return True
 
@@ -83,19 +84,22 @@ class Game:
     def answer(self, username, answer):
         # if game is over, return 0
         if not self.active_buzz[0]:
-            return
+            return False
         else:
             correct = (answer == self.answers[self.round-1][self.question-1])
             print(answer + " for Q:" + str(self.question) + "/R:" + str(self.round) + " was " + ("correct" if correct else "incorrect"))
             self.active_question[1] = time.time() - self.active_buzz[1] + self.active_question[1]  # readjust active question timer
-            self.active_buzz = [False, 0]
-            self.buzzer = ""
+            self.recording[self.round - 1][self.question - 1].append(['answer', correct, self.get_buzz_time(), username])
+
             if correct:
+                self.active_question[1] = time.time() - self.active_question[1] - self.rounds[self.round - 1][self.question - 1] # readjust active question timer
                 self.points[username] += 10
             else:
                 self.points[username] -= 5
             print(self.points)
-            return correct
+            self.active_buzz = [False, 0]
+            self.buzzer = ""
+            return True
 
     # get remaining question time
     def get_question_time(self):
