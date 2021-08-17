@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request
-from flask_socketio import SocketIO, emit, join_room, leave_room
+from flask_socketio import SocketIO, emit, join_room, leave_room, close_room
 from collections import deque
 import game
 import lobby
@@ -10,6 +10,8 @@ from firebase_admin import auth, initialize_app
 import os
 import threading
 import requests
+import time
+import json
 
 os.environ[
     'GOOGLE_APPLICATION_CREDENTIALS'] = '/Users/andrewchen/PycharmProjects/quizzr-socket-server/secrets/quizzrio-firebase-adminsdk-m39pr-6e4a9cfa44.json';
@@ -17,10 +19,10 @@ app = Flask(__name__)
 firebase_app = initialize_app()
 app.config['SECRET_KEY'] = '3ca170251cc76400b62d4f4feb73896c5ee84ebddabf5e82'
 socketio = SocketIO(app, cors_allowed_origins="*")
-live_game = None
 
 current_lobby = {}  # UID : room name
-usernames = {} # UID : username
+usernames = {}  # UID : username
+uids = {} # username : UID
 lobbies = {}  # room name : lobby object
 games = {}  # room name : game object
 queues = {
@@ -29,15 +31,40 @@ queues = {
     "rankedsolo": deque([]),
     "rankedduo": deque([]),
 }
-test_data = [0]
 
 
-async def emitstate(sleep_time=0.1):
+async def emit_game_state(sleep_time=0.1):
+    while True:
+        for gamecode in games:
+            socketio.emit('gamestate', games[gamecode].gamestate(), to=gamecode)
+        await asyncio.sleep(sleep_time)
+
+
+async def emit_lobby_state(sleep_time=0.1):
     while True:
         for lobbycode in lobbies:
             socketio.emit('lobbystate', lobbies[lobbycode].state(), to=lobbycode)
-        for gamecode in games:
-            socketio.emit('gamestate', games[gamecode].gamestate(), to=gamecode)
+        await asyncio.sleep(sleep_time)
+
+
+# TODO fix with UID support
+async def clean_lobbies_and_games(sleep_time=30):
+    while True:
+        current_time = time.time()
+        for lobbycode in list(lobbies):
+            if current_time - lobbies[lobbycode].start_time > 600 and not lobbies[lobbycode].game_started:
+                socketio.emit('closelobby', {}, to=lobbycode)
+                socketio.emit('alert', ['error', 'Lobby closed due to inactivity'], to=lobbycode)
+                players_list = lobbies[lobbycode].get_players_list()
+                for player in players_list:
+                    current_lobby.pop(player, None)
+                lobbies.pop(lobbycode, None)
+                socketio.close_room(lobbycode)
+                print('Closed lobby ' + str(lobbycode) + ' due to inactivity')
+        for gamecode in list(games):
+            if not games[gamecode].active_game:
+                games.pop(gamecode, None)
+                print('Closed game ' + str(gamecode))
         await asyncio.sleep(sleep_time)
 
 
@@ -55,10 +82,11 @@ def start_lobby(json, methods=['GET', 'POST']):
     lobbycode = lobbycode_generator(6)
     while lobbycode in lobbies:
         lobbycode = lobbycode_generator(6)
-    lobbies[lobbycode] = lobby.Lobby(username, lobbycode, 0, 8)
+    lobbies[lobbycode] = lobby.Lobby(username, lobbycode, json['gamemode'], json['auth'])
     join_room(lobbycode)
     current_lobby[username] = lobbycode
     print("Lobby started. Code: " + lobbycode)
+    emit('lobbystate', lobbies[lobbycode].state(), to=lobbycode)
     emit('alert', ['success', 'Started lobby ' + lobbycode])
 
 
@@ -75,10 +103,20 @@ def join_lobby(json, methods=['GET', 'POST']):
     if lobbies[lobbycode].join(username):
         current_lobby[username] = lobbycode
         join_room(lobbycode)
+        emit('lobbystate', lobbies[lobbycode].state(), to=lobbycode)
         emit('alert', ['success', 'Joined lobby ' + str(lobbycode)])
         emit('alert', ['success', str(username) + ' joined the lobby'], include_self=False, to=lobbycode)
     else:
         emit('alert', ['error', 'Lobby ' + str(lobbycode) + ' is full'])
+
+
+@socketio.on('updatesettings')
+def update_settings(json, methods=['GET', 'POST']):
+    user = get_user(json['auth'])
+    lobby = current_lobby[user['username']]
+
+    lobbies[lobby].update_settings(json['settings'])
+    emit('lobbystate', lobbies[lobby].state(), to=lobby)
 
 
 @socketio.on('leavelobby')
@@ -89,6 +127,7 @@ def leave_lobby(json, methods=['GET', 'POST']):
 
     leave_room(lobby)
     lobbies[lobby].leave(username)
+    emit('lobbystate', lobbies[lobby].state(), to=lobby)
     emit('alert', ['show', str(username) + ' left the lobby'], to=lobby)
 
 
@@ -99,7 +138,8 @@ def start_game(json, methods=['GET', 'POST']):
     lobby = current_lobby[user['username']]
 
     print("Game started in lobby " + lobby)
-    games[lobby] = game.Game(lobbies[lobby].players)
+    lobbies[lobby].game_started = True
+    games[lobby] = game.Game(lobbies[lobby])
     emit('gamestarted', {}, to=lobby)
 
 
@@ -129,7 +169,6 @@ def answer(json, methods=['GET', 'POST']):
         emit('alert', ['error', "You can't answer right now"])
 
 
-
 def run_socketio():
     socketio.run(app, port=4000)
 
@@ -137,7 +176,9 @@ def run_socketio():
 def run_asyncio():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    loop.create_task(emitstate())
+    loop.create_task(emit_game_state())
+    # loop.create_task(emit_lobby_state())
+    loop.create_task(clean_lobbies_and_games())
     loop.run_forever()
 
 

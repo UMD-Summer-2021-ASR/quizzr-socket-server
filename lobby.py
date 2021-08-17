@@ -1,28 +1,72 @@
+import time
+
 class Lobby:
-    def __init__(self, initial_player, code, teams, max_players):
-        self.players = [initial_player]  # List of players
-        self.code = code  # Room code
-        self.teams = 0  # Number of teams
-        self.max_players = 8  # maximum number of players
+    def __init__(self, initial_player, code, gamemode, auth_token):
+        self.settings = {
+            "players": [initial_player],  # List of players
+            "code": code,  # room code
+            "teams": 0,  # Number of teams
+            "max_players": 8,  # maximum total number of players in lobby
+            "rounds": 1,  # number of rounds
+            "questions_num": 10,  # number of questions per round
+            "gap_time": 5,  # time between questions
+            "post_buzz_time": 5  # time after questions players can still buzz
+        }
+        self.start_time = time.time()
+        self.auth_token = auth_token
+        self.gamemode = gamemode
+        self.game_started = False
+
+    # returns list of players (no team indication)
+    def get_players_list(self):
+        if self.settings['teams'] <= 0:
+            return self.settings['players']
+        elif self.settings['teams'] >= 2:
+            players_list = []
+            for team in self.settings['players']:
+                for player in team:
+                    players_list.append(player)
+            return players_list
 
     # Updates lobby settings
-    def update_settings(self, teams, max_players):
+    def update_settings(self, settings):
         # TODO Clean input
-        self.teams = teams
-        self.max_players = max_players
+        for setting in settings:
+            if setting == 'teams':  # adjust players list depending on team number
+                if self.settings['teams'] != settings['teams']:
+                    if settings['teams'] == 2:
+                        self.settings['players'] = [self.settings['players'], []]
+                    elif settings['teams'] == 0:
+                        players_list = []
+                        for team in self.settings['players']:
+                            for player in team:
+                                players_list.append(player)
+                        self.settings['players'] = players_list
+
+            if setting in self.settings:
+                self.settings[setting] = settings[setting]
+
 
     # Returns current lobby state
     def state(self):
-        return [self.players, self.code, self.teams, self.max_players]
+        return self.settings
 
     # Removes player from lobby
     def leave(self, username):
-        self.players.remove(username)
+        if self.settings['teams'] <= 0:
+            self.settings['players'].remove(username)
+        else:
+            for team in self.settings['players']:
+                if username in team:
+                    team.remove(username)
 
     # Adds player to lobby
     def join(self, username):
         # Check does not exceed max players
-        if len(self.players) >= self.max_players:
+        if len(self.settings['players']) >= self.settings['max_players']:
             return False
-        self.players.append(username)
+        if self.settings['teams'] <= 0:
+            self.settings['players'].append(username)
+        else:
+            self.settings['players'][0].append(username)
         return True
