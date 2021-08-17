@@ -3,17 +3,20 @@ import requests
 import random
 import json
 
-HANDSHAKE = "I-AM-A-SECRET-KEY" # used for HLS
+HANDSHAKE = "Lt`cw%Y9sg*bJ_~KZ#;|rbfI)nx[r5"  # used for HLS
+
 
 # returns the final time of a VTT string passed in
 def get_final_time(vtt):
     return float(vtt.split('\n')[-4].split(':')[-1])
 
+
 class Game:
-    def __init__(self, lobby):
+    def __init__(self, lobby, socketio):
         # TODO Set settings according to game type
 
         # game settings
+        self.gamecode = lobby.settings['code']
         self.gamemode = lobby.gamemode  # game type
         self.rounds_num = lobby.settings['rounds']  # total number of rounds
         self.questions_num = lobby.settings['questions_num']  # questions per round
@@ -24,6 +27,27 @@ class Game:
         self.teams = lobby.settings['teams']
         self.players = lobby.settings['players']
         self.auth_token = lobby.auth_token
+
+        # HLS Tokens
+        self.socketio = socketio
+        self.hls_tokens = []
+        raw_questions = requests.get('http://localhost:5000/question',
+                                     params={'batchSize': self.questions_num * self.rounds_num},
+                                     headers={'Authorization': self.auth_token}).json()['results']
+        self.questions = []  # id, qb_id, time length
+        for question in raw_questions:
+            self.questions.append([question['audio'][0]['id'], question['qb_id'],
+                                   get_final_time(question['audio'][0]['vtt']) + self.post_buzz_time])
+
+        for question in self.questions:
+            print('Getting HLS data for ' + str(question[0]))
+            hls_response = requests.post('http://localhost:7000/api/token',
+                                         data={
+                                             'handshake': HANDSHAKE,
+                                             'qid': question[0]
+                                         }
+                                         ).json()
+            self.hls_tokens.append({'token': hls_response['token'], 'rid': hls_response['rid']})
 
         # for game state
         self.active_game = True  # active
@@ -43,13 +67,6 @@ class Game:
                 self.points[0][player] = 0
             for player in self.players[1]:
                 self.points[1][player] = 0
-
-        raw_questions = requests.get('http://localhost:5000/question',
-                              params={'batchSize': self.questions_num * self.rounds_num},
-                              headers={'Authorization': self.auth_token}).json()['results']
-        self.questions = [] # id, qb_id, time length
-        for question in raw_questions:
-            self.questions.append([question['audio'][0]['id'], question['qb_id'], get_final_time(question['audio'][0]['vtt']) + self.post_buzz_time])
 
         # for storage
         self.date = time.strftime("%Y %m %d %H %M %S", time.gmtime())  # Year month day hour minute second (UTC)
@@ -77,6 +94,9 @@ class Game:
         if self.active_gap[0]:  # between questions
             # if gap time is over, move to question
             if self.get_gap_time() < 0:
+                question_idx = ((self.round - 1) * self.questions_num) + self.question - 1
+                self.socketio.emit("hlsupdate", self.hls_tokens[question_idx],
+                                   to=self.gamecode)  # TODO INSERT HLS RID AND TOKEN
                 self.active_gap = [False, 0]
                 self.active_question = [True, time.time()]
 
@@ -96,26 +116,21 @@ class Game:
         if self.active_question[0]:  # in a question
             # if question time is over, check round & question number- go to gap OR to next round OR end game
             if self.get_question_time() < 0:
-                self.question_over()
+                self.question += 1
+                self.active_gap = [True, time.time()]
+                self.active_question = [False, 0]
+                if self.question > self.questions_num:
+                    self.question = 1
+                    self.round += 1
+                    if self.round > self.rounds_num:
+                        self.round = 0
+                        self.question = 0
+                        self.active_gap = [False, 0]
+                        self.active_game = False
+                        self.save_game()
 
         return [self.active_game, self.round, self.question, self.get_question_time(), self.get_buzz_time(),
                 self.get_gap_time(), self.buzzer, self.points]
-
-    # adjusts rounds when question is over
-    def question_over(self):
-        self.question += 1
-        self.active_gap = [True, time.time()]
-        self.active_question = [False, 0]
-        if self.question > self.questions_num:
-            self.question = 1
-            self.round += 1
-            if self.round > self.rounds_num:
-                self.round = 0
-                self.question = 0
-                self.active_gap = [False, 0]
-                self.active_game = False
-                self.save_game()
-                return
 
     # gets new question + tells HLS to get new question
     def get_new_question(self):

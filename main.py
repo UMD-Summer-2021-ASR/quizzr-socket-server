@@ -163,7 +163,8 @@ def start_game(json, methods=['GET', 'POST']):
 
     print("Game started in lobby " + lobby)
     lobbies[lobby].game_started = True
-    games[lobby] = game.Game(lobbies[lobby])
+    single_game = game.Game(lobbies[lobby], socketio)
+    games[lobby] = single_game
     emit('gamestarted', {}, to=lobby)
 
 
