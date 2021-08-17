@@ -1,7 +1,13 @@
 import time
 import requests
 import random
+import json
 
+HANDSHAKE = "I-AM-A-SECRET-KEY" # used for HLS
+
+# returns the final time of a VTT string passed in
+def get_final_time(vtt):
+    return float(vtt.split('\n')[-4].split(':')[-1])
 
 class Game:
     def __init__(self, lobby):
@@ -38,69 +44,30 @@ class Game:
             for player in self.players[1]:
                 self.points[1][player] = 0
 
-        recordings = [
-            "WGRfoqqhZdRHEXbx5lK1M59t3X8jBQ3Ayq_p6BMG5Wk",
-            "9heIh_gBzfcIk7BGuxVOFHWfDzdxNz-qv5ftmXtSoMg",
-            "wKQg9a0NRlxcCnKzzmj_suIV0ZolpY2wLcyG0cT1A98",
-            "NZttx-IEIkO0RUhETELltLcQHatBoda_ylIaFXnFyfU",
-            "vonq1a_6_fVL4-6-5CgcqUUib2j0qPo1vwcAPQ6dE0g",
-            "XiGKtEMzFjZW-KrWhSU_-DlWLj3haie6w9pj4UHj2Xk",
-            "8bq1nLT_vJUSxcRZVXLQzHuh87_88c-ilj-YSsnktqs",
-            "wfHyuiDlUSCQGlsm6npJQDVasQVAkSRp7qKqxSuySBc"
-        ]
-
-        recording_times = [
-            33.400,
-            25.780,
-            25.900,
-            34.420,
-            30.100,
-            29.270,
-            29.140,
-            30.950,
-        ]
-
-        answers = [
-            "Sri Lanka",
-            "New York City",
-            "New York City",
-            "Peru",
-            "Alexander II of Russia",
-            "Erwin Rommel",
-            "Richard Nixon",
-            "Central African Republic",
-        ]
-
-        selected = []
+        raw_questions = requests.get('http://localhost:5000/question',
+                              params={'batchSize': self.questions_num * self.rounds_num},
+                              headers={'Authorization': self.auth_token}).json()['results']
+        self.questions = [] # id, qb_id, time length
+        for question in raw_questions:
+            self.questions.append([question['audio'][0]['id'], question['qb_id'], get_final_time(question['audio'][0]['vtt']) + self.post_buzz_time])
 
         # for storage
         self.date = time.strftime("%Y %m %d %H %M %S", time.gmtime())  # Year month day hour minute second (UTC)
         self.rounds = []  # rounds[i][j] = time length of question j in round i
         self.recording = [[[] for i in range(self.questions_num)] for j in
                           range(self.rounds_num)]  # recording[i][j][k] = buzz time of round i, question j, buzz k
-        self.answers = []  # answers[i][j] = answer of round i, question j, replace with /answer endpoint
+        self.answering_ids = []  # answering_ids[i][j] = answer of round i, question j
+
+        questions_ptr = 0
         for i in range(self.rounds_num):
             round1 = []
-            answers1 = []
+            answering_ids1 = []
             for j in range(self.questions_num):
-                x = random.randint(0, 7)
-                round1.append(recording_times[x])
-                answers1.append(answers[x])
+                round1.append(self.questions[questions_ptr][2])
+                answering_ids1.append(self.questions[questions_ptr][1])
+                questions_ptr += 1
             self.rounds.append(round1)
-            self.answers.append(answers1)
-
-        # print(self.auth_token)
-        # audios = requests.get('http://localhost:5000/question',
-        #              params={'batchSize': 4},
-        #              headers={'Authorization': self.auth_token}).json()['results']
-        # for key in audios:
-        #     print(key)
-        # print(requests.get('http://localhost:5000/answer',
-        #                    params={
-        #                        'a': 'Sri Lanka',
-        #                        'qid': '2',
-        #                    },
-        #                    headers={'Authorization': self.auth_token}).text)
+            self.answering_ids.append(answering_ids1)
 
     # returns the current game state
     # round #, question #, question time remaining, buzz time remaining, gap time remaining
@@ -116,7 +83,12 @@ class Game:
         if self.active_buzz[0]:  # in a buzz
             # if buzz time is over, keep going through question
             if self.get_buzz_time() < 0:
-                self.points[self.active_buzz[3]] -= 5
+                if self.teams == 0:
+                    self.points[self.active_buzz[3]] -= 5
+                else:
+                    for team in self.points:
+                        if self.active_buzz[3] in team:
+                            team[self.active_buzz[3]] -= 5
                 self.active_question[1] = self.active_question[1] + self.buzz_time
                 self.active_buzz = [False, 0, 0]
                 self.buzzer = ''
@@ -124,21 +96,39 @@ class Game:
         if self.active_question[0]:  # in a question
             # if question time is over, check round & question number- go to gap OR to next round OR end game
             if self.get_question_time() < 0:
-                self.question += 1
-                self.active_gap = [True, time.time()]
-                self.active_question = [False, 0]
-                if self.question > self.questions_num:
-                    self.question = 1
-                    self.round += 1
-                    if self.round > self.rounds_num:
-                        self.round = 0
-                        self.question = 0
-                        self.active_gap = [False, 0]
-                        self.active_game = False
-                        self.save_game()
+                self.question_over()
 
         return [self.active_game, self.round, self.question, self.get_question_time(), self.get_buzz_time(),
                 self.get_gap_time(), self.buzzer, self.points]
+
+    # adjusts rounds when question is over
+    def question_over(self):
+        self.question += 1
+        self.active_gap = [True, time.time()]
+        self.active_question = [False, 0]
+        if self.question > self.questions_num:
+            self.question = 1
+            self.round += 1
+            if self.round > self.rounds_num:
+                self.round = 0
+                self.question = 0
+                self.active_gap = [False, 0]
+                self.active_game = False
+                self.save_game()
+                return
+
+    # gets new question + tells HLS to get new question
+    def get_new_question(self):
+        return 1
+        # question_idx = ((self.round-1) * self.questions_num) + self.question
+        # hls_response = requests.post('http://127.0.0.1:3500/token',
+        #                                 data={
+        #                                     'handshake': HANDSHAKE,
+        #                                     'qid': self.questions[question_idx][0]
+        #                                 }
+        #                              )
+        # print(hls_response.text)
+        # return {'token': hls_response['token'], 'rid': hls_response['rid']}
 
     # makes adjustments to timers when buzzing
     def buzz(self, username):
@@ -149,7 +139,6 @@ class Game:
             self.active_buzz = [True, time.time(), self.get_question_time(), username]
             self.recording[self.round - 1][self.question - 1].append(['buzz', self.active_buzz[2], username])
             print('Buzzed at: ' + str(self.active_buzz[2]))
-            print('Correct Answer: ' + str(self.answers[self.round - 1][self.question - 1]))
             return True
 
     # check answer while buzzed
@@ -158,7 +147,13 @@ class Game:
         if not self.active_buzz[0]:
             return False
         else:
-            correct = (answer == self.answers[self.round - 1][self.question - 1])
+            correct = json.loads(requests.get('http://localhost:5000/answer',
+                                              params={
+                                                  'a': answer,
+                                                  'qid': self.answering_ids[self.round - 1][self.question - 1],
+                                              },
+                                              headers={'Authorization': self.auth_token}).text)['correct']
+            print('qb_id for current question: ' + str(self.answering_ids[self.round - 1][self.question - 1]))
             print(answer + " for Q:" + str(self.question) + "/R:" + str(self.round) + " was " + (
                 "correct" if correct else "incorrect"))
             self.active_question[1] = time.time() - self.active_buzz[1] + self.active_question[

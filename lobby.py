@@ -1,5 +1,6 @@
 import time
 
+
 class Lobby:
     def __init__(self, initial_player, code, gamemode, auth_token):
         self.settings = {
@@ -8,7 +9,7 @@ class Lobby:
             "teams": 0,  # Number of teams
             "max_players": 8,  # maximum total number of players in lobby
             "rounds": 1,  # number of rounds
-            "questions_num": 10,  # number of questions per round
+            "questions_num": 3,  # number of questions per round
             "gap_time": 5,  # time between questions
             "post_buzz_time": 5  # time after questions players can still buzz
         }
@@ -46,7 +47,6 @@ class Lobby:
             if setting in self.settings:
                 self.settings[setting] = settings[setting]
 
-
     # Returns current lobby state
     def state(self):
         return self.settings
@@ -70,3 +70,17 @@ class Lobby:
         else:
             self.settings['players'][0].append(username)
         return True
+
+    def switch_team(self, username):
+        if self.settings['teams'] < 2:
+            return False
+        if username in self.settings['players'][0]:
+            self.settings['players'][0].remove(username)
+            self.settings['players'][1].append(username)
+            return True
+        elif username in self.settings['players'][1]:
+            self.settings['players'][1].remove(username)
+            self.settings['players'][0].append(username)
+            return True
+        else:
+            return False

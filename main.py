@@ -22,9 +22,10 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 
 current_lobby = {}  # UID : room name
 usernames = {}  # UID : username
-uids = {} # username : UID
+uids = {}  # username : UID
 lobbies = {}  # room name : lobby object
 games = {}  # room name : game object
+previous_gamestate = {}  # room name : game object (used for catching when to send next question
 queues = {
     "casualsolo": deque([]),
     "casualduo": deque([]),
@@ -36,7 +37,16 @@ queues = {
 async def emit_game_state(sleep_time=0.1):
     while True:
         for gamecode in games:
+            #
+            gamestate = games[gamecode].gamestate()
+            if gamecode in previous_gamestate:
+                if previous_gamestate[gamecode][2] != gamestate[2]:
+                    games[gamecode].get_new_question()
+            else:
+                games[gamecode].get_new_question()
+                # socketio.emit('newquestion', games[gamecode].get_new_question(), to=gamecode)
             socketio.emit('gamestate', games[gamecode].gamestate(), to=gamecode)
+            previous_gamestate[gamecode] = gamestate
         await asyncio.sleep(sleep_time)
 
 
@@ -63,6 +73,7 @@ async def clean_lobbies_and_games(sleep_time=30):
                 print('Closed lobby ' + str(lobbycode) + ' due to inactivity')
         for gamecode in list(games):
             if not games[gamecode].active_game:
+                lobbies.pop(gamecode, None)
                 games.pop(gamecode, None)
                 print('Closed game ' + str(gamecode))
         await asyncio.sleep(sleep_time)
@@ -108,6 +119,19 @@ def join_lobby(json, methods=['GET', 'POST']):
         emit('alert', ['success', str(username) + ' joined the lobby'], include_self=False, to=lobbycode)
     else:
         emit('alert', ['error', 'Lobby ' + str(lobbycode) + ' is full'])
+
+
+@socketio.on('switchteam')
+def switch_team(json, methods=['GET', 'POST']):
+    user = get_user(json['auth'])
+    lobby = current_lobby[user['username']]
+
+    result = lobbies[lobby].switch_team(json['user'])
+    if result:
+        emit('lobbystate', lobbies[lobby].state(), to=lobby)
+        emit('alert', ['success', str(json['user']) + ' switched teams'], to=lobby)
+    else:
+        emit('alert', ['error', 'Switching teams failed'], to=lobby)
 
 
 @socketio.on('updatesettings')
