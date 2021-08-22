@@ -2,6 +2,7 @@ import time
 import requests
 import random
 import json
+import recordings_database as rd
 
 HANDSHAKE = "Lt`cw%Y9sg*bJ_~KZ#;|rbfI)nx[r5"  # used for HLS
 
@@ -9,6 +10,13 @@ HANDSHAKE = "Lt`cw%Y9sg*bJ_~KZ#;|rbfI)nx[r5"  # used for HLS
 # returns the final time of a VTT string passed in
 def get_final_time(vtt):
     return float(vtt.split('\n')[-4].split(':')[-1])
+
+
+def get_minutes_seconds(seconds):
+    minutes = seconds // 60
+    seconds %= 60
+
+    return "%02dm%02ds" % (minutes, seconds)
 
 
 class Game:
@@ -30,24 +38,39 @@ class Game:
 
         # HLS Tokens
         self.socketio = socketio
+        self.hls_rids = []
         self.hls_tokens = []
-        raw_questions = requests.get('http://localhost:5000/question',
-                                     params={'batchSize': self.questions_num * self.rounds_num},
-                                     headers={'Authorization': self.auth_token}).json()['results']
+        try:
+            raw_questions = requests.get('http://localhost:5000/question',
+                                         params={'batchSize': self.questions_num * self.rounds_num},
+                                         headers={'Authorization': self.auth_token}).json()['results']
+        except:
+            socketio.emit('startgamefailed')
+            socketio.emit('alert', ['error', 'Starting game failed'], to=self.gamecode)
+
         self.questions = []  # id, qb_id, time length
         for question in raw_questions:
             self.questions.append([question['audio'][0]['id'], question['qb_id'],
                                    get_final_time(question['audio'][0]['vtt']) + self.post_buzz_time])
 
-        for question in self.questions:
-            print('Getting HLS data for ' + str(question[0]))
-            hls_response = requests.post('http://localhost:7000/api/token',
-                                         data={
-                                             'handshake': HANDSHAKE,
-                                             'qid': question[0]
-                                         }
-                                         ).json()
-            self.hls_tokens.append({'token': hls_response['token'], 'rid': hls_response['rid']})
+        for i in range(len(self.questions)):
+            self.hls_tokens.append('')
+            self.hls_rids.append('')
+
+        print('Getting HLS data for game ' + str(self.gamecode))
+        print('Expiry time: ' + str(get_minutes_seconds(round(sum([i[2] for i in self.questions]) +
+                                                                             self.gap_time * len(self.questions) + 30))))
+        hls_response = requests.post('http://localhost:7000/api/batch',
+                                     data={
+                                         'handshake': HANDSHAKE,
+                                         'qids': [i[0] for i in self.questions],
+                                         'expiry': get_minutes_seconds(round(sum([i[2] for i in self.questions]) +
+                                                                             self.gap_time * len(self.questions) + 30))
+                                         # all the questions added up + the gap times between them + 30 seconds
+                                     }
+                                     )
+        for pair in hls_response.json()['streams']:
+            self.hls_rids[[x[0] for x in self.questions].index(pair['qid'])] = pair['rid']
 
         # for game state
         self.active_game = True  # active
@@ -71,8 +94,8 @@ class Game:
         # for storage
         self.date = time.strftime("%Y %m %d %H %M %S", time.gmtime())  # Year month day hour minute second (UTC)
         self.rounds = []  # rounds[i][j] = time length of question j in round i
-        self.recording = [[[] for i in range(self.questions_num)] for j in
-                          range(self.rounds_num)]  # recording[i][j][k] = buzz time of round i, question j, buzz k
+        self.buzz_recording = [[[] for i in range(self.questions_num)] for j in
+                          range(self.rounds_num)]  # buzz_recording[i][j][k] = buzz time of round i, question j, buzz k
         self.answering_ids = []  # answering_ids[i][j] = answer of round i, question j
 
         questions_ptr = 0
@@ -86,6 +109,14 @@ class Game:
             self.rounds.append(round1)
             self.answering_ids.append(answering_ids1)
 
+        unlock_response = requests.post('http://localhost:7000/api/unlock',
+                                        data={
+                                            'handshake': HANDSHAKE,
+                                            'rid': self.hls_rids[0]
+                                        }
+                                        ).json()
+        self.hls_tokens[0] = unlock_response['token']
+
     # returns the current game state
     # round #, question #, question time remaining, buzz time remaining, gap time remaining
     def gamestate(self):
@@ -95,8 +126,8 @@ class Game:
             # if gap time is over, move to question
             if self.get_gap_time() < 0:
                 question_idx = ((self.round - 1) * self.questions_num) + self.question - 1
-                self.socketio.emit("hlsupdate", self.hls_tokens[question_idx],
-                                   to=self.gamecode)  # TODO INSERT HLS RID AND TOKEN
+                self.socketio.emit("hlsupdate", {'rid': self.hls_rids[question_idx], 'token': self.hls_tokens[question_idx]},
+                                   to=self.gamecode)
                 self.active_gap = [False, 0]
                 self.active_question = [True, time.time()]
 
@@ -112,10 +143,12 @@ class Game:
                 self.active_question[1] = self.active_question[1] + self.buzz_time
                 self.active_buzz = [False, 0, 0]
                 self.buzzer = ''
+                self.socketio.emit('answered', {}, to=self.gamecode)
 
         if self.active_question[0]:  # in a question
             # if question time is over, check round & question number- go to gap OR to next round OR end game
-            if self.get_question_time() < 0:
+            unlock_next = True
+            if self.get_question_time() <= 0:
                 self.question += 1
                 self.active_gap = [True, time.time()]
                 self.active_question = [False, 0]
@@ -123,11 +156,22 @@ class Game:
                     self.question = 1
                     self.round += 1
                     if self.round > self.rounds_num:
+                        unlock_next = False
                         self.round = 0
                         self.question = 0
                         self.active_gap = [False, 0]
                         self.active_game = False
                         self.save_game()
+
+                if unlock_next:
+                    question_idx = ((self.round - 1) * self.questions_num) + self.question - 1
+                    unlock_response = requests.post('http://localhost:7000/api/unlock',
+                                                    data={
+                                                        'handshake': HANDSHAKE,
+                                                        'rid': self.hls_rids[question_idx]
+                                                    }
+                                                    ).json()
+                    self.hls_tokens[question_idx] = unlock_response['token']
 
         return [self.active_game, self.round, self.question, self.get_question_time(), self.get_buzz_time(),
                 self.get_gap_time(), self.buzzer, self.points]
@@ -152,7 +196,7 @@ class Game:
         else:
             self.buzzer = username
             self.active_buzz = [True, time.time(), self.get_question_time(), username]
-            self.recording[self.round - 1][self.question - 1].append(['buzz', self.active_buzz[2], username])
+            self.buzz_recording[self.round - 1][self.question - 1].append(['buzz', self.active_buzz[2], username])
             print('Buzzed at: ' + str(self.active_buzz[2]))
             return True
 
@@ -173,7 +217,7 @@ class Game:
                 "correct" if correct else "incorrect"))
             self.active_question[1] = time.time() - self.active_buzz[1] + self.active_question[
                 1]  # readjust active question timer
-            self.recording[self.round - 1][self.question - 1].append(
+            self.buzz_recording[self.round - 1][self.question - 1].append(
                 ['answer', correct, self.get_buzz_time(), username])
 
             if correct:
@@ -233,11 +277,20 @@ class Game:
 
     # save game's buzz times into text
     def save_game(self):
-        f = open("recordings.txt", "w")
-        for i in range(self.rounds_num):
-            for j in range(self.questions_num):
-                for k in range(len(self.recording[i][j])):
-                    line = str(i + 1) + " " + str(j + 1) + " " + str(self.recording[i][j][k])
-                    print(line)
-                    f.write(line + "\n")
-        f.close()
+        recording_json = {}
+        recording_json['buzz_recording'] = self.buzz_recording
+        recording_json['settings'] = {}
+        recording_json['settings']['gamemode'] = self.gamemode
+        recording_json['settings']['rounds_num'] = self.rounds_num
+        recording_json['settings']['questions_num'] = self.questions_num
+        recording_json['settings']['tiebreaker'] = self.tiebreaker
+        recording_json['settings']['buzz_time'] = self.buzz_time
+        recording_json['settings']['post_buzz_time'] = self.post_buzz_time
+        recording_json['settings']['gap_time'] = self.gap_time
+        recording_json['settings']['teams'] = self.teams
+        recording_json['settings']['players'] = self.players
+        recording_json['date'] = self.date
+        recording_json['questions'] = [{'id': i[0], 'qb_id': i[1]} for i in self.questions]
+
+        recording_code = rd.database.add_recording(recording_json)
+        print('Recording of game ' + str(self.gamecode) + ' saved at ' + str(recording_code))

@@ -1,2 +1,1 @@
-1 1 ['buzz', 8.020536184310913, 'achen80']
-1 1 ['answer', True, 4.230285882949829, 'achen80']
+{"buzz_recording": [[[], [], []]], "settings": {"gamemode": "customclassic", "rounds_num": 1, "questions_num": 3, "tiebreaker": "random", "buzz_time": 8, "post_buzz_time": 5, "gap_time": 5, "teams": 0, "players": ["achen80"]}, "date": "2021 08 22 02 47 40", "questions": [["XiGKtEMzFjZW-KrWhSU_-DlWLj3haie6w9pj4UHj2Xk", 6], ["wfHyuiDlUSCQGlsm6npJQDVasQVAkSRp7qKqxSuySBc", 8], ["8bq1nLT_vJUSxcRZVXLQzHuh87_88c-ilj-YSsnktqs", 7]]}
