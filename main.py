@@ -26,6 +26,7 @@ uids = {}  # username : UID
 lobbies = {}  # room name : lobby object
 games = {}  # room name : game object
 previous_gamestate = {}  # room name : game object (used for catching when to send next question
+clients = {} # sid : username
 queues = {
     "casualsolo": deque([]),
     "casualduo": deque([]),
@@ -90,6 +91,7 @@ def start_lobby(json, methods=['GET', 'POST']):
     user = get_user(json['auth'])
     username = user['username']
 
+    clients[request.sid] = username
     lobbycode = lobbycode_generator(6)
     while lobbycode in lobbies:
         lobbycode = lobbycode_generator(6)
@@ -108,6 +110,7 @@ def join_lobby(json, methods=['GET', 'POST']):
     username = user['username']
     lobbycode = json['lobby']
 
+    clients[request.sid] = username
     if not (lobbycode in lobbies):
         emit('alert', ['error', 'Lobby ' + str(lobbycode) + ' does not exist'])
         return
@@ -161,11 +164,12 @@ def start_game(json, methods=['GET', 'POST']):
     user = get_user(json['auth'])
     lobby = current_lobby[user['username']]
 
-    print("Game started in lobby " + lobby)
-    lobbies[lobby].game_started = True
     single_game = game.Game(lobbies[lobby], socketio)
-    games[lobby] = single_game
-    emit('gamestarted', {}, to=lobby)
+    if single_game.good_game:
+        games[lobby] = single_game
+        print("Game started in lobby " + lobby)
+        lobbies[lobby].game_started = True
+        emit('gamestarted', {}, to=lobby)
 
 
 @socketio.on('buzz')
@@ -192,6 +196,18 @@ def answer(json, methods=['GET', 'POST']):
         emit('answered', {}, to=lobby)
     else:
         emit('alert', ['error', "You can't answer right now"])
+
+
+# TODO broken for some reason?
+# @socketio.on('disconnect')
+# def user_disconnected():
+#     username = clients[request.sid]
+#     lobby = current_lobby[username]
+#
+#     leave_room(lobby)
+#     lobbies[lobby].leave(username)
+#     emit('lobbystate', lobbies[lobby].state(), to=lobby)
+#     emit('alert', ['show', str(username) + ' left the lobby'], to=lobby)
 
 
 def run_socketio():

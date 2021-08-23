@@ -22,6 +22,7 @@ def get_minutes_seconds(seconds):
 class Game:
     def __init__(self, lobby, socketio):
         # TODO Set settings according to game type
+        self.good_game = True
 
         # game settings
         self.gamecode = lobby.settings['code']
@@ -44,78 +45,90 @@ class Game:
             raw_questions = requests.get('http://localhost:5000/question',
                                          params={'batchSize': self.questions_num * self.rounds_num},
                                          headers={'Authorization': self.auth_token}).json()['results']
+            self.questions = []  # id, qb_id, time length
+            for question in raw_questions:
+                self.questions.append([question['audio'][0]['id'], question['qb_id'],
+                                       get_final_time(question['audio'][0]['vtt']) + self.post_buzz_time])
+
+            for i in range(len(self.questions)):
+                self.hls_tokens.append('')
+                self.hls_rids.append('')
+
+            print('Getting HLS data for game ' + str(self.gamecode))
+            print('Expiry time: ' + str(get_minutes_seconds(round(sum([i[2] for i in self.questions]) +
+                                                                  self.gap_time * len(self.questions) + 30))))
+
+            try:
+                hls_response = requests.post('http://localhost:7000/api/batch',
+                                             data={
+                                                 'handshake': HANDSHAKE,
+                                                 'qids': [i[0] for i in self.questions],
+                                                 'expiry': get_minutes_seconds(
+                                                     round(sum([i[2] for i in self.questions]) +
+                                                           self.gap_time * len(
+                                                         self.questions) + 30))
+                                                 # all the questions added up + the gap times between them + 30 seconds
+                                             }
+                                             )
+                for pair in hls_response.json()['streams']:
+                    self.hls_rids[[x[0] for x in self.questions].index(pair['qid'])] = pair['rid']
+            except:
+                self.good_game = False
+                socketio.emit('startgamefailed')
+                socketio.emit('alert', ['error', 'Starting game failed'], to=self.gamecode)
+
+            # for game state
+            self.active_game = True  # active
+            self.active_question = [False, 0]  # active, time started
+            self.active_buzz = [False, 0, 0, ""]  # active, time started, question time remaining at buzz, username
+            self.active_gap = [True, time.time()]  # active, time started
+            self.round = 1  # current round
+            self.question = 1  # current question
+            self.buzzer = ""  # username of person who buzzed
+            self.points = {}
+            if self.teams == 0:
+                for player in self.players:
+                    self.points[player] = 0
+            else:
+                self.points = [{}, {}]
+                for player in self.players[0]:
+                    self.points[0][player] = 0
+                for player in self.players[1]:
+                    self.points[1][player] = 0
+
+            # for storage
+            self.date = time.strftime("%Y %m %d %H %M %S", time.gmtime())  # Year month day hour minute second (UTC)
+            self.rounds = []  # rounds[i][j] = time length of question j in round i
+            self.buzz_recording = [[[] for i in range(self.questions_num)] for j in
+                                   range(
+                                       self.rounds_num)]  # buzz_recording[i][j][k] = buzz time of round i, question j, buzz k
+            self.answering_ids = []  # answering_ids[i][j] = answer of round i, question j
+
+            questions_ptr = 0
+            for i in range(self.rounds_num):
+                round1 = []
+                answering_ids1 = []
+                for j in range(self.questions_num):
+                    round1.append(self.questions[questions_ptr][2])
+                    answering_ids1.append(self.questions[questions_ptr][1])
+                    questions_ptr += 1
+                self.rounds.append(round1)
+                self.answering_ids.append(answering_ids1)
+
+            unlock_response = requests.post('http://localhost:7000/api/unlock',
+                                            data={
+                                                'handshake': HANDSHAKE,
+                                                'rid': self.hls_rids[0]
+                                            }
+                                            ).json()
+            self.hls_tokens[0] = unlock_response['token']
         except:
+            self.good_game = False
             socketio.emit('startgamefailed')
             socketio.emit('alert', ['error', 'Starting game failed'], to=self.gamecode)
 
-        self.questions = []  # id, qb_id, time length
-        for question in raw_questions:
-            self.questions.append([question['audio'][0]['id'], question['qb_id'],
-                                   get_final_time(question['audio'][0]['vtt']) + self.post_buzz_time])
 
-        for i in range(len(self.questions)):
-            self.hls_tokens.append('')
-            self.hls_rids.append('')
 
-        print('Getting HLS data for game ' + str(self.gamecode))
-        print('Expiry time: ' + str(get_minutes_seconds(round(sum([i[2] for i in self.questions]) +
-                                                                             self.gap_time * len(self.questions) + 30))))
-        hls_response = requests.post('http://localhost:7000/api/batch',
-                                     data={
-                                         'handshake': HANDSHAKE,
-                                         'qids': [i[0] for i in self.questions],
-                                         'expiry': get_minutes_seconds(round(sum([i[2] for i in self.questions]) +
-                                                                             self.gap_time * len(self.questions) + 30))
-                                         # all the questions added up + the gap times between them + 30 seconds
-                                     }
-                                     )
-        for pair in hls_response.json()['streams']:
-            self.hls_rids[[x[0] for x in self.questions].index(pair['qid'])] = pair['rid']
-
-        # for game state
-        self.active_game = True  # active
-        self.active_question = [False, 0]  # active, time started
-        self.active_buzz = [False, 0, 0, ""]  # active, time started, question time remaining at buzz, username
-        self.active_gap = [True, time.time()]  # active, time started
-        self.round = 1  # current round
-        self.question = 1  # current question
-        self.buzzer = ""  # username of person who buzzed
-        self.points = {}
-        if self.teams == 0:
-            for player in self.players:
-                self.points[player] = 0
-        else:
-            self.points = [{}, {}]
-            for player in self.players[0]:
-                self.points[0][player] = 0
-            for player in self.players[1]:
-                self.points[1][player] = 0
-
-        # for storage
-        self.date = time.strftime("%Y %m %d %H %M %S", time.gmtime())  # Year month day hour minute second (UTC)
-        self.rounds = []  # rounds[i][j] = time length of question j in round i
-        self.buzz_recording = [[[] for i in range(self.questions_num)] for j in
-                          range(self.rounds_num)]  # buzz_recording[i][j][k] = buzz time of round i, question j, buzz k
-        self.answering_ids = []  # answering_ids[i][j] = answer of round i, question j
-
-        questions_ptr = 0
-        for i in range(self.rounds_num):
-            round1 = []
-            answering_ids1 = []
-            for j in range(self.questions_num):
-                round1.append(self.questions[questions_ptr][2])
-                answering_ids1.append(self.questions[questions_ptr][1])
-                questions_ptr += 1
-            self.rounds.append(round1)
-            self.answering_ids.append(answering_ids1)
-
-        unlock_response = requests.post('http://localhost:7000/api/unlock',
-                                        data={
-                                            'handshake': HANDSHAKE,
-                                            'rid': self.hls_rids[0]
-                                        }
-                                        ).json()
-        self.hls_tokens[0] = unlock_response['token']
 
     # returns the current game state
     # round #, question #, question time remaining, buzz time remaining, gap time remaining
@@ -126,7 +139,8 @@ class Game:
             # if gap time is over, move to question
             if self.get_gap_time() < 0:
                 question_idx = ((self.round - 1) * self.questions_num) + self.question - 1
-                self.socketio.emit("hlsupdate", {'rid': self.hls_rids[question_idx], 'token': self.hls_tokens[question_idx]},
+                self.socketio.emit("hlsupdate",
+                                   {'rid': self.hls_rids[question_idx], 'token': self.hls_tokens[question_idx]},
                                    to=self.gamecode)
                 self.active_gap = [False, 0]
                 self.active_question = [True, time.time()]
