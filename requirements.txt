@@ -2,3 +2,5 @@ flask~=2.0.1
 flask_socketio
 simple-websocket
 requests~=2.26.0
+asyncio
+firebase_admin
