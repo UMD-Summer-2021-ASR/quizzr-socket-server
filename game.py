@@ -243,6 +243,7 @@ class Game:
                     for team in self.points:
                         if username in team:
                             team[username] += 10
+                self.socketio.emit('answeredcorrectly', {}, to=self.gamecode)
             else:
                 if self.teams == 0:
                     self.points[username] -= 5
@@ -250,6 +251,7 @@ class Game:
                     for team in self.points:
                         if username in team:
                             team[username] -= 5
+                self.socketio.emit('answeredincorrectly', {}, to=self.gamecode)
             print(self.points)
             self.active_buzz = [False, 0]
             self.buzzer = ""

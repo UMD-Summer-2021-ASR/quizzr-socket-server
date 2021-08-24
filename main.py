@@ -192,9 +192,7 @@ def answer(json, methods=['GET', 'POST']):
     lobby = current_lobby[user['username']]
 
     answered = games[lobby].answer(username, json['answer'])
-    if answered:
-        emit('answered', {}, to=lobby)
-    else:
+    if not answered:
         emit('alert', ['error', "You can't answer right now"])
 
 
