@@ -26,7 +26,7 @@ uids = {}  # username : UID
 lobbies = {}  # room name : lobby object
 games = {}  # room name : game object
 previous_gamestate = {}  # room name : game object (used for catching when to send next question
-clients = {} # sid : username
+clients = {}  # sid : username
 queues = {
     "casualsolo": deque([]),
     "casualduo": deque([]),
@@ -83,6 +83,38 @@ async def clean_lobbies_and_games(sleep_time=30):
 @app.route('/')
 def sessions():
     return render_template('session.html')
+
+
+@app.route('/audioanswer', methods=["GET", "POST"])
+def audio_answer():
+    print('hi1')
+    try:
+        audio = request.files['audio']
+        user = get_user(request.form['auth'])
+        username = user['username']
+        lobby = current_lobby[username]
+
+        print('hi')
+        response = requests.post('http://localhost:6250/upload',
+                                 data={
+                                     'audio': audio,
+                                 }
+                                 ).json()
+        print(response)
+        # TODO emit the response
+        # answered = games[lobby].answer(username, json['answer'])
+        # if not answered:
+        #     emit('alert', ['error', "You can't answer right now"])
+    except:
+        emit('alert', ['error', 'Audio submission failed'])
+
+
+@socketio.on('lobbyloading')  # makes user in lobby go to loading screen
+def lobby_loading(json, methods=['GET', 'POST']):
+    user = get_user(json['auth'])
+    lobby = current_lobby[user['username']]
+    username = user['username']
+    emit('lobbyloading', {}, to=lobby)
 
 
 @socketio.on('startlobby')  # starts a lobby and makes user join
@@ -212,6 +244,10 @@ def run_socketio():
     socketio.run(app, port=4000)
 
 
+def run_flask():
+    app.run(port=2000)
+
+
 def run_asyncio():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -223,6 +259,8 @@ def run_asyncio():
 
 if __name__ == '__main__':
     socket_thread = threading.Thread(target=run_socketio)
+    flask_thread = threading.Thread(target=run_flask)
     asyncio_thread = threading.Thread(target=run_asyncio)
     socket_thread.start()
+    flask_thread.start()
     asyncio_thread.start()
