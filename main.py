@@ -85,6 +85,7 @@ def sessions():
     return render_template('session.html')
 
 
+# Socket endpoint for answering by audio
 @app.route('/audioanswer', methods=["GET", "POST"])
 def audio_answer():
     print('hi1')
@@ -109,6 +110,7 @@ def audio_answer():
         emit('alert', ['error', 'Audio submission failed'])
 
 
+# Socket endpoint for sending all users in a lobby to the lobby loading screen while the streams are created
 @socketio.on('lobbyloading')  # makes user in lobby go to loading screen
 def lobby_loading(json, methods=['GET', 'POST']):
     user = get_user(json['auth'])
@@ -117,6 +119,7 @@ def lobby_loading(json, methods=['GET', 'POST']):
     emit('lobbyloading', {}, to=lobby)
 
 
+# Socket endpoint for starting a lobby
 @socketio.on('startlobby')  # starts a lobby and makes user join
 def start_lobby(json, methods=['GET', 'POST']):
     cache_user(json['auth'])
@@ -135,6 +138,7 @@ def start_lobby(json, methods=['GET', 'POST']):
     emit('alert', ['success', 'Started lobby ' + lobbycode])
 
 
+# Socket endpoint for joining a lobby
 @socketio.on('joinlobby')  # if lobby with given code exists, join it. otherwise, alert failed
 def join_lobby(json, methods=['GET', 'POST']):
     cache_user(json['auth'])
@@ -155,7 +159,7 @@ def join_lobby(json, methods=['GET', 'POST']):
     else:
         emit('alert', ['error', 'Lobby ' + str(lobbycode) + ' is full'])
 
-
+# Socket endpoint for switching teams
 @socketio.on('switchteam')
 def switch_team(json, methods=['GET', 'POST']):
     user = get_user(json['auth'])
@@ -169,6 +173,7 @@ def switch_team(json, methods=['GET', 'POST']):
         emit('alert', ['error', 'Switching teams failed'], to=lobby)
 
 
+# Socket endpoint for updating settings in-game
 @socketio.on('updatesettings')
 def update_settings(json, methods=['GET', 'POST']):
     user = get_user(json['auth'])
@@ -178,6 +183,7 @@ def update_settings(json, methods=['GET', 'POST']):
     emit('lobbystate', lobbies[lobby].state(), to=lobby)
 
 
+# Socket endpoint for leaving a lobby
 @socketio.on('leavelobby')
 def leave_lobby(json, methods=['GET', 'POST']):
     user = get_user(json['auth'])
@@ -190,6 +196,7 @@ def leave_lobby(json, methods=['GET', 'POST']):
     emit('alert', ['show', str(username) + ' left the lobby'], to=lobby)
 
 
+# Socket endpoint for starting a game from a lobby
 @socketio.on('startgame')
 def start_game(json, methods=['GET', 'POST']):
     # Start game with correct lobby parameters according to key
@@ -204,6 +211,7 @@ def start_game(json, methods=['GET', 'POST']):
         emit('gamestarted', {}, to=lobby)
 
 
+# Socket endpoint for buzzing in game
 @socketio.on('buzz')
 def buzz(json, methods=['GET', 'POST']):
     user = get_user(json['auth'])
@@ -217,6 +225,7 @@ def buzz(json, methods=['GET', 'POST']):
         emit('alert', ['error', "You can't buzz right now"])
 
 
+# Socket endpoint for answering by text
 @socketio.on('answer')
 def answer(json, methods=['GET', 'POST']):
     user = get_user(json['auth'])
@@ -240,14 +249,15 @@ def answer(json, methods=['GET', 'POST']):
 #     emit('alert', ['show', str(username) + ' left the lobby'], to=lobby)
 
 
+# Runs the flask socketio server
 def run_socketio():
     socketio.run(app, port=4000)
 
-
+# Runs the flask server
 def run_flask():
     app.run(port=2000)
 
-
+# Runs the asyncio tasks
 def run_asyncio():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -259,8 +269,8 @@ def run_asyncio():
 
 if __name__ == '__main__':
     socket_thread = threading.Thread(target=run_socketio)
-    flask_thread = threading.Thread(target=run_flask)
+    # flask_thread = threading.Thread(target=run_flask)
     asyncio_thread = threading.Thread(target=run_asyncio)
     socket_thread.start()
-    flask_thread.start()
+    # flask_thread.start()
     asyncio_thread.start()
