@@ -1,7 +1,7 @@
 # Quizzr Socket Server
 
 ## Installation
-1. Clone this repository
+1. Clone this repository into a python 3.8 virtual environment
 2. Run `pip install -r requirements.txt` in the console/terminal
 3. Generate a firebase admin secrets json in the firebase
    - Login to firebase using the Quizzr gmail
