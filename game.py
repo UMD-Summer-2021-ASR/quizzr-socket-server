@@ -5,6 +5,7 @@ import json
 import recordings_database as rd
 import os
 
+# HANDSHAKE = "Lt`cw%Y9sg*bJ_~KZ#;|rbfI)nx[r5"
 HANDSHAKE = os.environ.get("HLS_HANDSHAKE")  # used for HLS
 
 

@@ -12,4 +12,4 @@
 4. Configure environment variables
    1. Get the file path of the firebase admin secrets json and set the 'GOOGLE_APPLICATION_CREDENTIALS' environment variable to that path using `export GOOGLE_APPLICATION_CREDENTIALS="<your json path>"`
    2. Set the 'HLS_HANDSHAKE' environment variable to the handshake set in the HLS server using `export HLS_HANDSHAKE="<your HLS handshake>"`
-5. Run `main.py`
+5. Run `main.py` using `python main.py`

@@ -14,6 +14,8 @@ import time
 import json
 
 app = Flask(__name__)
+# os.environ[
+#     'GOOGLE_APPLICATION_CREDENTIALS'] = '/Users/andrewchen/PycharmProjects/quizzr-socket-server/secrets/quizzrio-firebase-adminsdk-m39pr-6e4a9cfa44.json';
 firebase_app = initialize_app()
 app.config['SECRET_KEY'] = '3ca170251cc76400b62d4f4feb73896c5ee84ebddabf5e82'
 socketio = SocketIO(app, cors_allowed_origins="*")
