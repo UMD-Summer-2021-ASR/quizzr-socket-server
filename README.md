@@ -1,7 +1,7 @@
 # Quizzr Socket Server
 
 ## Installation
-1. Clone this repository
+1. Clone this repository into a python 3.8 virtual environment
 2. Run `pip install -r requirements.txt` in the console/terminal
 3. Generate a firebase admin secrets json in the firebase
    - Login to firebase using the Quizzr gmail
@@ -9,5 +9,5 @@
    - Go to the Service accounts tab
    - Go to the Firebase Admin SDK tab
    - Click Generate new private key
-4. Get the file path of the json file and replace the 'GOOGLE_APPLICATION_CREDENTIALS' environment variable's value with that path in `main.py`
+4. Get the file path of the json file and set the 'GOOGLE_APPLICATION_CREDENTIALS' environment variable to that path using `export GOOGLE_APPLICATION_CREDENTIALS="<your json path>"`
 5. Run `main.py`
