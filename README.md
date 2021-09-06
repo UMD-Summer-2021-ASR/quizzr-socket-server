@@ -9,5 +9,5 @@
    - Go to the Service accounts tab
    - Go to the Firebase Admin SDK tab
    - Click Generate new private key
-4. Get the file path of the json file and replace the 'GOOGLE_APPLICATION_CREDENTIALS' environment variable's value with that path in `main.py`
+4. Get the file path of the json file and set the 'GOOGLE_APPLICATION_CREDENTIALS' environment variable to that path using `export GOOGLE_APPLICATION_CREDENTIALS="<your json path>"`
 5. Run `main.py`
