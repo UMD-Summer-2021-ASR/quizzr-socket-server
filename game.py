@@ -54,19 +54,18 @@ class Game:
                 self.hls_tokens.append('')
                 self.hls_rids.append('')
 
+            expiry_time = get_minutes_seconds(round(sum([i[2] for i in self.questions]) +
+                                                    (self.gap_time+10) * len(self.questions)))
+
             print('Getting HLS data for game ' + str(self.gamecode))
-            print('Expiry time: ' + str(get_minutes_seconds(round(sum([i[2] for i in self.questions]) +
-                                                                  self.gap_time * len(self.questions) + 30))))
+            print('Expiry time: ' + str(expiry_time))
 
             try:
                 hls_response = requests.post('http://localhost:7000/api/batch',
                                              data={
                                                  'handshake': HANDSHAKE,
                                                  'qids': [i[0] for i in self.questions],
-                                                 'expiry': get_minutes_seconds(
-                                                     round(sum([i[2] for i in self.questions]) +
-                                                           self.gap_time * len(
-                                                         self.questions) + 30))
+                                                 'expiry': str(expiry_time)
                                                  # all the questions added up + the gap times between them + 30 seconds
                                              }
                                              )
@@ -309,4 +308,10 @@ class Game:
         recording_json['questions'] = [{'id': i[0], 'qb_id': i[1]} for i in self.questions]
 
         recording_code = rd.database.add_recording(recording_json)
+        requests.post('http://localhost:5000/game',
+                      json={
+                          'id': recording_code,
+                          'session': recording_json
+                      }
+                      )
         print('Recording of game ' + str(self.gamecode) + ' saved at ' + str(recording_code))

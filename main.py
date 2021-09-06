@@ -13,8 +13,6 @@ import requests
 import time
 import json
 
-os.environ[
-    'GOOGLE_APPLICATION_CREDENTIALS'] = '/Users/andrewchen/PycharmProjects/quizzr-socket-server/secrets/quizzrio-firebase-adminsdk-m39pr-6e4a9cfa44.json';
 app = Flask(__name__)
 firebase_app = initialize_app()
 app.config['SECRET_KEY'] = '3ca170251cc76400b62d4f4feb73896c5ee84ebddabf5e82'
@@ -262,7 +260,7 @@ def run_asyncio():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     loop.create_task(emit_game_state())
-    # loop.create_task(emit_lobby_state())
+    loop.create_task(emit_lobby_state())
     loop.create_task(clean_lobbies_and_games())
     loop.run_forever()
 
