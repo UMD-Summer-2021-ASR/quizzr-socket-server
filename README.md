@@ -9,5 +9,7 @@
    - Go to the Service accounts tab
    - Go to the Firebase Admin SDK tab
    - Click Generate new private key
-4. Get the file path of the json file and set the 'GOOGLE_APPLICATION_CREDENTIALS' environment variable to that path using `export GOOGLE_APPLICATION_CREDENTIALS="<your json path>"`
+4. Configure environment variables
+   1. Get the file path of the firebase admin secrets json and set the 'GOOGLE_APPLICATION_CREDENTIALS' environment variable to that path using `export GOOGLE_APPLICATION_CREDENTIALS="<your json path>"`
+   2. Set the 'HLS_HANDSHAKE' environment variable to the handshake set in the HLS server using `export HLS_HANDSHAKE="<your HLS handshake>"`
 5. Run `main.py`

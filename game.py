@@ -3,8 +3,9 @@ import requests
 import random
 import json
 import recordings_database as rd
+import os
 
-HANDSHAKE = "Lt`cw%Y9sg*bJ_~KZ#;|rbfI)nx[r5"  # used for HLS
+HANDSHAKE = os.environ.get("HLS_HANDSHAKE")  # used for HLS
 
 
 # returns the final time of a VTT string passed in
