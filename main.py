@@ -251,11 +251,11 @@ def answer(json, methods=['GET', 'POST']):
 
 # Runs the flask socketio server
 def run_socketio():
-    socketio.run(app, port=4000)
+    socketio.run(app, port=4000,host='0.0.0.0')
 
 # Runs the flask server
 def run_flask():
-    app.run(port=2000)
+    app.run(port=2000,host="0.0.0.0")
 
 # Runs the asyncio tasks
 def run_asyncio():
