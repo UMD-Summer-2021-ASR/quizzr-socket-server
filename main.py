@@ -255,7 +255,7 @@ def run_socketio():
 
 # Runs the flask server
 def run_flask():
-    app.run(port=2000)
+    app.run(port=2000,host="0.0.0.0")
 
 # Runs the asyncio tasks
 def run_asyncio():
