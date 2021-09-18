@@ -260,6 +260,7 @@ def audioanswerupload():
         filename = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(20)) + '.wav'
 
     file.save(os.path.join('./answer-audios', filename))
+    file.close()
 
     # response
     response = jsonify({'filename': filename})

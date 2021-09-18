@@ -264,15 +264,19 @@ class Game:
         # check answer while buzzed
 
     def classifier_answer(self, username, filename):
+        print('classifier_answer reached with filename ' + filename)
         # if game is over, return 0
         if not self.active_buzz[0]:
+            print('classifier_answer no active buzz')
             return False
         elif os.path.exists('./answer-audios/' + filename):
+            print('classifier_answer file does not exist with filename ' + filename)
+
             self.socketio.emit('alert', ['error', 'File does not exist'], to=self.gamecode)
             return False
         else:
             qid = self.answering_ids[self.round - 1][self.question - 1]
-
+            print('classifier_answer found file')
             correct = classify_and_upload(filename, qid)
             print('qb_id for current question: ' + str(self.answering_ids[self.round - 1][self.question - 1]))
             print("Audio for Q:" + str(self.question) + "/R:" + str(self.round) + " was classified as " + (
