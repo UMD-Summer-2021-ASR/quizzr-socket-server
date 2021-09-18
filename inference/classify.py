@@ -4,6 +4,7 @@ import os
 
 
 def classify_and_upload(file_path: str, qid: str) -> bool:
+    print("Classifying " + file_path + " with qid " + qid)
     try:
         file = open(file_path, "rb")
         answer = requests.get(
