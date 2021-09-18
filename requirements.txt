@@ -28,6 +28,7 @@ itsdangerous==2.0.1
 Jinja2==3.0.1
 MarkupSafe==2.0.1
 msgpack==1.0.2
+numpy == 1.19.0
 packaging==21.0
 proto-plus==1.19.0
 protobuf==3.17.3
@@ -42,6 +43,7 @@ requests==2.26.0
 rsa==4.7.2
 simple-websocket==0.3.0
 six==1.16.0
+tensorflow == 2.2.0
 uritemplate==3.0.1
 urllib3==1.26.6
 Werkzeug==2.0.1
