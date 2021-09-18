@@ -13,11 +13,13 @@ import requests
 import time
 import json
 import string
+from flask_cors import CORS
 ###
 
 ###
 
 app = Flask(__name__)
+CORS(app)
 # os.environ[
 #     'GOOGLE_APPLICATION_CREDENTIALS'] = '/Users/andrewchen/PycharmProjects/quizzr-socket-server/secrets/quizzrio-firebase-adminsdk-m39pr-6e4a9cfa44.json';
 # export GOOGLE_APPLICATION_CREDENTIALS="/Users/andrewchen/PycharmProjects/quizzr-socket-server/secrets/quizzrio-firebase-adminsdk-m39pr-6e4a9cfa44.json"
@@ -221,7 +223,6 @@ def answer(json, methods=['GET', 'POST']):
 # Socket endpoint for classifier results
 @socketio.on('audioanswer')
 def audioanswer(json, methods=['GET', 'POST']):
-    print('audioanswer reached')
     user = get_user(json['auth'])
     username = user['username']
     lobby = current_lobby[user['username']]
@@ -244,11 +245,9 @@ def audioanswer(json, methods=['GET', 'POST']):
 
 @app.route('/audioanswerupload', methods=['POST'])
 def audioanswerupload():
-    print('audioanswerupload reached')
     user = get_user(request.form.get("auth"))
     username = user['username']
     lobby = current_lobby[user['username']]
-    print('audio answer upload endpoint reached by ' + username)
 
     # get qid
     current_game = games[lobby]
@@ -256,9 +255,15 @@ def audioanswerupload():
 
     # upload file and get filename
     file = request.files['audio']
-    filename = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(20))
+    filename = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(20)) + '.wav'
+    while os.path.exists('./answer-audios/' + filename):
+        filename = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(20)) + '.wav'
+
     file.save(os.path.join('./answer-audios', filename))
-    return jsonify({'filename': filename})
+
+    # response
+    response = jsonify({'filename': filename})
+    return response
 
 # Runs the flask socketio server
 def run_socketio():
