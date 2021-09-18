@@ -1,6 +1,7 @@
 import random
 from firebase_admin import auth
 import requests
+import os
 BACKEND_URL_2 = os.environ.get("BACKEND_URL")
 
 
