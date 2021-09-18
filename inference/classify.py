@@ -5,6 +5,7 @@ import os
 
 def classify_and_upload(file_path: str, qid: str) -> bool:
     print("Classifying " + file_path + " with qid " + qid)
+    file_path = "./audio-files/{}".format(file_path)
     try:
         file = open(file_path, "rb")
         answer = requests.get(
