@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, jsonify
 from flask_socketio import SocketIO, emit, join_room, leave_room, close_room
 from collections import deque
 import game
@@ -12,10 +12,12 @@ import threading
 import requests
 import time
 import json
+import string
 
 app = Flask(__name__)
 # os.environ[
 #     'GOOGLE_APPLICATION_CREDENTIALS'] = '/Users/andrewchen/PycharmProjects/quizzr-socket-server/secrets/quizzrio-firebase-adminsdk-m39pr-6e4a9cfa44.json';
+# export GOOGLE_APPLICATION_CREDENTIALS="/Users/andrewchen/PycharmProjects/quizzr-socket-server/secrets/quizzrio-firebase-adminsdk-m39pr-6e4a9cfa44.json"
 firebase_app = initialize_app()
 app.config['SECRET_KEY'] = '3ca170251cc76400b62d4f4feb73896c5ee84ebddabf5e82'
 socketio = SocketIO(app, cors_allowed_origins="*")
@@ -85,31 +87,6 @@ def sessions():
     return render_template('session.html')
 
 
-# Socket endpoint for answering by audio
-@app.route('/audioanswer', methods=["GET", "POST"])
-def audio_answer():
-    print('hi1')
-    try:
-        audio = request.files['audio']
-        user = get_user(request.form['auth'])
-        username = user['username']
-        lobby = current_lobby[username]
-
-        print('hi')
-        response = requests.post('http://localhost:6250/upload',
-                                 data={
-                                     'audio': audio,
-                                 }
-                                 ).json()
-        print(response)
-        # TODO emit the response
-        # answered = games[lobby].answer(username, json['answer'])
-        # if not answered:
-        #     emit('alert', ['error', "You can't answer right now"])
-    except:
-        emit('alert', ['error', 'Audio submission failed'])
-
-
 # Socket endpoint for sending all users in a lobby to the lobby loading screen while the streams are created
 @socketio.on('lobbyloading')  # makes user in lobby go to loading screen
 def lobby_loading(json, methods=['GET', 'POST']):
@@ -158,6 +135,7 @@ def join_lobby(json, methods=['GET', 'POST']):
         emit('alert', ['success', str(username) + ' joined the lobby'], include_self=False, to=lobbycode)
     else:
         emit('alert', ['error', 'Lobby ' + str(lobbycode) + ' is full'])
+
 
 # Socket endpoint for switching teams
 @socketio.on('switchteam')
@@ -237,6 +215,14 @@ def answer(json, methods=['GET', 'POST']):
         emit('alert', ['error', "You can't answer right now"])
 
 
+# Socket endpoint for classifier results
+@socketio.on('audioanswer')
+def audioanswer(json, methods=['GET', 'POST']):
+    user = get_user(json['auth'])
+    username = user['username']
+    lobby = current_lobby[user['username']]
+
+
 # TODO broken for some reason?
 # @socketio.on('disconnect')
 # def user_disconnected():
@@ -248,14 +234,32 @@ def answer(json, methods=['GET', 'POST']):
 #     emit('lobbystate', lobbies[lobby].state(), to=lobby)
 #     emit('alert', ['show', str(username) + ' left the lobby'], to=lobby)
 
+@app.route('/audioanswerupload', methods=['POST'])
+def audioanswerupload():
+    user = get_user(request.form.get("auth"))
+    username = user['username']
+    lobby = current_lobby[user['username']]
+    print('audio answer upload endpoint reached by ' + username)
+
+    # get qid
+    current_game = games[lobby]
+    qid = current_game.answering_ids[current_game.round - 1][current_game.question - 1]
+
+    # upload file and get filename
+    file = request.files['audio']
+    filename = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(20))
+    file.save(os.path.join('./answer-audios', filename))
+    return jsonify({'qid': qid, 'filename': filename})
 
 # Runs the flask socketio server
 def run_socketio():
-    socketio.run(app, port=4000,host='0.0.0.0')
+    socketio.run(app, port=4000, host='0.0.0.0')
+
 
 # Runs the flask server
 def run_flask():
-    app.run(port=2000,host="0.0.0.0")
+    app.run(port=2000, host="0.0.0.0")
+
 
 # Runs the asyncio tasks
 def run_asyncio():
@@ -269,8 +273,8 @@ def run_asyncio():
 
 if __name__ == '__main__':
     socket_thread = threading.Thread(target=run_socketio)
-    # flask_thread = threading.Thread(target=run_flask)
+    flask_thread = threading.Thread(target=run_flask)
     asyncio_thread = threading.Thread(target=run_asyncio)
     socket_thread.start()
-    # flask_thread.start()
+    flask_thread.start()
     asyncio_thread.start()

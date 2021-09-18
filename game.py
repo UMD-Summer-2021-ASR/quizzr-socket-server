@@ -6,6 +6,7 @@ import recordings_database as rd
 import os
 
 # HANDSHAKE = "Lt`cw%Y9sg*bJ_~KZ#;|rbfI)nx[r5"
+# export HLS_HANDSHAKE="Lt\`cw%Y9sg*bJ_~KZ#;|rbfI)nx[r5"
 HANDSHAKE = os.environ.get("HLS_HANDSHAKE")  # used for HLS
 BACKEND_URL = os.environ.get("BACKEND_URL")
 HLS_URL = os.environ.get("HLS_URL")
@@ -71,9 +72,11 @@ class Game:
                                                  # all the questions added up + the gap times between them + 30 seconds
                                              }
                                              )
+                print(hls_response.json())
                 for pair in hls_response.json()['streams']:
                     self.hls_rids[[x[0] for x in self.questions].index(pair['qid'])] = pair['rid']
-            except:
+            except Exception as e:
+                print(e)
                 self.good_game = False
                 socketio.emit('startgamefailed')
                 socketio.emit('alert', ['error', 'Starting game failed'], to=self.gamecode)
