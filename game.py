@@ -269,11 +269,6 @@ class Game:
         if not self.active_buzz[0]:
             print('classifier_answer no active buzz')
             return False
-        elif os.path.exists('./answer-audios/' + filename):
-            print('classifier_answer file does not exist with filename ' + filename)
-
-            self.socketio.emit('alert', ['error', 'File does not exist'], to=self.gamecode)
-            return False
         else:
             qid = self.answering_ids[self.round - 1][self.question - 1]
             print('classifier_answer found file')
