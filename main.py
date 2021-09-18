@@ -13,6 +13,9 @@ import requests
 import time
 import json
 import string
+###
+
+###
 
 app = Flask(__name__)
 # os.environ[
@@ -222,6 +225,10 @@ def audioanswer(json, methods=['GET', 'POST']):
     username = user['username']
     lobby = current_lobby[user['username']]
 
+    answered = games[lobby].classifier_answer(username, json['filename'])
+    if not answered:
+        emit('alert', ['error', "You can't answer right now"])
+
 
 # TODO broken for some reason?
 # @socketio.on('disconnect')
@@ -236,6 +243,7 @@ def audioanswer(json, methods=['GET', 'POST']):
 
 @app.route('/audioanswerupload', methods=['POST'])
 def audioanswerupload():
+    print('hi')
     user = get_user(request.form.get("auth"))
     username = user['username']
     lobby = current_lobby[user['username']]
@@ -249,7 +257,7 @@ def audioanswerupload():
     file = request.files['audio']
     filename = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(20))
     file.save(os.path.join('./answer-audios', filename))
-    return jsonify({'qid': qid, 'filename': filename})
+    return jsonify({'filename': filename})
 
 # Runs the flask socketio server
 def run_socketio():

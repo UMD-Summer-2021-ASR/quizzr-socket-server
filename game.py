@@ -10,6 +10,8 @@ import os
 HANDSHAKE = os.environ.get("HLS_HANDSHAKE")  # used for HLS
 BACKEND_URL = os.environ.get("BACKEND_URL")
 HLS_URL = os.environ.get("HLS_URL")
+
+
 # returns the final time of a VTT string passed in
 def get_final_time(vtt):
     return float(vtt.split('\n')[-4].split(':')[-1])
@@ -58,7 +60,7 @@ class Game:
                 self.hls_rids.append('')
 
             expiry_time = get_minutes_seconds(round(sum([i[2] for i in self.questions]) +
-                                                    (self.gap_time+10) * len(self.questions)))
+                                                    (self.gap_time + 10) * len(self.questions)))
 
             print('Getting HLS data for game ' + str(self.gamecode))
             print('Expiry time: ' + str(expiry_time))
@@ -130,9 +132,6 @@ class Game:
             self.good_game = False
             socketio.emit('startgamefailed')
             socketio.emit('alert', ['error', 'Starting game failed'], to=self.gamecode)
-
-
-
 
     # returns the current game state
     # round #, question #, question time remaining, buzz time remaining, gap time remaining
@@ -232,6 +231,50 @@ class Game:
                                               headers={'Authorization': self.auth_token}).text)['correct']
             print('qb_id for current question: ' + str(self.answering_ids[self.round - 1][self.question - 1]))
             print(answer + " for Q:" + str(self.question) + "/R:" + str(self.round) + " was " + (
+                "correct" if correct else "incorrect"))
+            self.active_question[1] = time.time() - self.active_buzz[1] + self.active_question[
+                1]  # readjust active question timer
+            self.buzz_recording[self.round - 1][self.question - 1].append(
+                ['answer', correct, self.get_buzz_time(), username])
+
+            if correct:
+                self.active_question[1] = time.time() - self.active_question[1] - self.rounds[self.round - 1][
+                    self.question - 1]  # readjust active question timer
+                if self.teams == 0:
+                    self.points[username] += 10
+                else:
+                    for team in self.points:
+                        if username in team:
+                            team[username] += 10
+                self.socketio.emit('answeredcorrectly', {}, to=self.gamecode)
+            else:
+                if self.teams == 0:
+                    self.points[username] -= 5
+                else:
+                    for team in self.points:
+                        if username in team:
+                            team[username] -= 5
+                self.socketio.emit('answeredincorrectly', {}, to=self.gamecode)
+            print(self.points)
+            self.active_buzz = [False, 0]
+            self.buzzer = ""
+            return True
+
+        # check answer while buzzed
+
+    def classifier_answer(self, username, filename):
+        # if game is over, return 0
+        if not self.active_buzz[0]:
+            return False
+        elif os.path.exists('./answer-audios/' + filename):
+            self.socketio.emit('alert', ['error', 'File does not exist'], to=self.gamecode)
+            return False
+        else:
+            qid = self.answering_ids[self.round - 1][self.question - 1]
+
+            correct = True  # classify_and_upload(filename,qid)
+            print('qb_id for current question: ' + str(self.answering_ids[self.round - 1][self.question - 1]))
+            print("Audio for Q:" + str(self.question) + "/R:" + str(self.round) + " was classified as " + (
                 "correct" if correct else "incorrect"))
             self.active_question[1] = time.time() - self.active_buzz[1] + self.active_question[
                 1]  # readjust active question timer
