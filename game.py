@@ -4,6 +4,7 @@ import random
 import json
 import recordings_database as rd
 import os
+from classifier import classify_and_upload
 
 # HANDSHAKE = "Lt`cw%Y9sg*bJ_~KZ#;|rbfI)nx[r5"
 # export HLS_HANDSHAKE="Lt\`cw%Y9sg*bJ_~KZ#;|rbfI)nx[r5"
@@ -272,7 +273,7 @@ class Game:
         else:
             qid = self.answering_ids[self.round - 1][self.question - 1]
 
-            correct = True  # classify_and_upload(filename,qid)
+            correct = classify_and_upload(filename, qid)
             print('qb_id for current question: ' + str(self.answering_ids[self.round - 1][self.question - 1]))
             print("Audio for Q:" + str(self.question) + "/R:" + str(self.round) + " was classified as " + (
                 "correct" if correct else "incorrect"))

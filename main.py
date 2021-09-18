@@ -221,6 +221,7 @@ def answer(json, methods=['GET', 'POST']):
 # Socket endpoint for classifier results
 @socketio.on('audioanswer')
 def audioanswer(json, methods=['GET', 'POST']):
+    print('audioanswer reached')
     user = get_user(json['auth'])
     username = user['username']
     lobby = current_lobby[user['username']]
@@ -243,7 +244,7 @@ def audioanswer(json, methods=['GET', 'POST']):
 
 @app.route('/audioanswerupload', methods=['POST'])
 def audioanswerupload():
-    print('hi')
+    print('audioanswerupload reached')
     user = get_user(request.form.get("auth"))
     username = user['username']
     lobby = current_lobby[user['username']]
