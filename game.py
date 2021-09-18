@@ -176,6 +176,7 @@ class Game:
                     {
                         "rid": self.hls_rids[question_idx],
                         "token": self.hls_tokens[question_idx],
+                        "classifiable": True # classifiable()
                     },
                     to=self.gamecode,
                 )
