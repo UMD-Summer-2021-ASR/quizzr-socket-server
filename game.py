@@ -7,8 +7,8 @@ import os
 
 # HANDSHAKE = "Lt`cw%Y9sg*bJ_~KZ#;|rbfI)nx[r5"
 HANDSHAKE = os.environ.get("HLS_HANDSHAKE")  # used for HLS
-
-
+BACKEND_URL = os.environ.get("BACKEND_URL")
+HLS_URL = os.environ.get("HLS_URL")
 # returns the final time of a VTT string passed in
 def get_final_time(vtt):
     return float(vtt.split('\n')[-4].split(':')[-1])
@@ -44,7 +44,7 @@ class Game:
         self.hls_rids = []
         self.hls_tokens = []
         try:
-            raw_questions = requests.get('http://localhost:5000/question',
+            raw_questions = requests.get(BACKEND_URL + '/question',
                                          params={'batchSize': self.questions_num * self.rounds_num},
                                          headers={'Authorization': self.auth_token}).json()['results']
             self.questions = []  # id, qb_id, time length
@@ -63,7 +63,7 @@ class Game:
             print('Expiry time: ' + str(expiry_time))
 
             try:
-                hls_response = requests.post('http://localhost:7000/api/batch',
+                hls_response = requests.post(HLS_URL + '/api/batch',
                                              data={
                                                  'handshake': HANDSHAKE,
                                                  'qids': [i[0] for i in self.questions],
@@ -116,7 +116,7 @@ class Game:
                 self.rounds.append(round1)
                 self.answering_ids.append(answering_ids1)
 
-            unlock_response = requests.post('http://localhost:7000/api/unlock',
+            unlock_response = requests.post(HLS_URL + '/api/unlock',
                                             data={
                                                 'handshake': HANDSHAKE,
                                                 'rid': self.hls_rids[0]
@@ -180,7 +180,7 @@ class Game:
 
                 if unlock_next:
                     question_idx = ((self.round - 1) * self.questions_num) + self.question - 1
-                    unlock_response = requests.post('http://localhost:7000/api/unlock',
+                    unlock_response = requests.post(HLS_URL + '/api/unlock',
                                                     data={
                                                         'handshake': HANDSHAKE,
                                                         'rid': self.hls_rids[question_idx]
@@ -221,7 +221,7 @@ class Game:
         if not self.active_buzz[0]:
             return False
         else:
-            correct = json.loads(requests.get('http://localhost:5000/answer',
+            correct = json.loads(requests.get(BACKEND_URL + '/answer',
                                               params={
                                                   'a': answer,
                                                   'qid': self.answering_ids[self.round - 1][self.question - 1],
@@ -310,7 +310,7 @@ class Game:
         recording_json['questions'] = [{'id': i[0], 'qb_id': i[1]} for i in self.questions]
 
         recording_code = rd.database.add_recording(recording_json)
-        requests.post('http://localhost:5000/game',
+        requests.post(BACKEND_URL + '/game',
                       json={
                           'id': recording_code,
                           'session': recording_json
