@@ -4,6 +4,8 @@ import os
 
 
 def classify_and_upload(file_path: str, qid: str) -> bool:
+    file_path = str(file_path)
+    qid = str(qid)
     print("Classifying " + file_path + " with qid " + qid)
     file_path = "./audio-files/{}".format(file_path)
     try:
@@ -27,8 +29,10 @@ def classify_and_upload(file_path: str, qid: str) -> bool:
                     "transcript": "",
                 },
             )
-        except:
+        except Exception as e:
+            print(e)
             pass
         return result
-    except:
+    except Exception as e:
+        print(e)
         return False

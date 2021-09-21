@@ -1,3 +1,4 @@
+from inference.audio import AudioClassifier
 import time
 import requests
 import random
@@ -169,8 +170,9 @@ class Game:
             # if gap time is over, move to question
             if self.get_gap_time() < 0:
                 question_idx = (
-                        ((self.round - 1) * self.questions_num) + self.question - 1
+                    ((self.round - 1) * self.questions_num) + self.question - 1
                 )
+                
                 self.socketio.emit("hlsplay", {}, to=self.gamecode)
                 self.active_gap = [False, 0]
                 self.active_question = [True, time.time()]
@@ -224,10 +226,13 @@ class Game:
                         {
                             "rid": self.hls_rids[question_idx],
                             "token": self.hls_tokens[question_idx],
-                            "classifiable": True  # classifiable()
+                            "classifiable": AudioClassifier.is_predictable(
+                                self.answering_ids[self.round - 1][self.question - 1]
+                            ),
                         },
                         to=self.gamecode,
                     )
+                    
 
         return [
             self.active_game,

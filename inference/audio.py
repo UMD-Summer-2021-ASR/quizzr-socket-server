@@ -1,7 +1,8 @@
 from os.path import join
 
 import numpy as np
-
+import requests
+import os
 import tensorflow as tf
 
 
@@ -56,6 +57,14 @@ class AudioClassifierCNN:
         #     {"label": self.labels[i], "match": prediction[i].item(), "is_matched": True}
         #     for i in top_predictions
         # ]
+
+    def is_predictable(self, qid: str):
+        label = requests.get(
+            "{}/answer_full/{}".format(os.environ.get("BACKEND_URL"), qid)
+        ).json()["answer"]
+        if label in self.labels:
+            return True
+        return False
 
 
 AudioClassifier = AudioClassifierCNN("./models/classifier250")
