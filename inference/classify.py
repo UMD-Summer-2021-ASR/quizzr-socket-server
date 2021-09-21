@@ -29,8 +29,10 @@ def classify_and_upload(file_path: str, qid: str) -> bool:
                     "transcript": "",
                 },
             )
-        except:
+        except Exception as e:
+            print(e)
             pass
         return result
-    except:
+    except Exception as e:
+        print(e)
         return False
