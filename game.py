@@ -1,3 +1,4 @@
+from inference.audio import AudioClassifier
 import time
 import requests
 import random
@@ -176,7 +177,9 @@ class Game:
                     {
                         "rid": self.hls_rids[question_idx],
                         "token": self.hls_tokens[question_idx],
-                        "classifiable": True # classifiable()
+                        "classifiable": AudioClassifier.is_predictable(
+                            self.answering_ids[self.round - 1][self.question - 1]
+                        ),
                     },
                     to=self.gamecode,
                 )
