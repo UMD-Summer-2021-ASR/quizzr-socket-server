@@ -172,17 +172,8 @@ class Game:
                 question_idx = (
                     ((self.round - 1) * self.questions_num) + self.question - 1
                 )
-                self.socketio.emit(
-                    "hlsupdate",
-                    {
-                        "rid": self.hls_rids[question_idx],
-                        "token": self.hls_tokens[question_idx],
-                        "classifiable": AudioClassifier.is_predictable(
-                            self.answering_ids[self.round - 1][self.question - 1]
-                        ),
-                    },
-                    to=self.gamecode,
-                )
+                
+                self.socketio.emit("hlsplay", {}, to=self.gamecode)
                 self.active_gap = [False, 0]
                 self.active_question = [True, time.time()]
 
@@ -220,7 +211,7 @@ class Game:
 
                 if unlock_next:
                     question_idx = (
-                        ((self.round - 1) * self.questions_num) + self.question - 1
+                            ((self.round - 1) * self.questions_num) + self.question - 1
                     )
                     unlock_response = requests.post(
                         HLS_URL + "/api/unlock",
@@ -230,6 +221,18 @@ class Game:
                         },
                     ).json()
                     self.hls_tokens[question_idx] = unlock_response["token"]
+                    self.socketio.emit(
+                        "hlsupdate",
+                        {
+                            "rid": self.hls_rids[question_idx],
+                            "token": self.hls_tokens[question_idx],
+                            "classifiable": AudioClassifier.is_predictable(
+                                self.answering_ids[self.round - 1][self.question - 1]
+                            ),
+                        },
+                        to=self.gamecode,
+                    )
+                    
 
         return [
             self.active_game,
@@ -298,7 +301,7 @@ class Game:
                 + ("correct" if correct else "incorrect")
             )
             self.active_question[1] = (
-                time.time() - self.active_buzz[1] + self.active_question[1]
+                    time.time() - self.active_buzz[1] + self.active_question[1]
             )  # readjust active question timer
             self.buzz_recording[self.round - 1][self.question - 1].append(
                 ["answer", correct, self.get_buzz_time(), username]
@@ -306,9 +309,9 @@ class Game:
 
             if correct:
                 self.active_question[1] = (
-                    time.time()
-                    - self.active_question[1]
-                    - self.rounds[self.round - 1][self.question - 1]
+                        time.time()
+                        - self.active_question[1]
+                        - self.rounds[self.round - 1][self.question - 1]
                 )  # readjust active question timer
                 if self.teams == 0:
                     self.points[username] += 10
@@ -355,7 +358,7 @@ class Game:
                 + ("correct" if correct else "incorrect")
             )
             self.active_question[1] = (
-                time.time() - self.active_buzz[1] + self.active_question[1]
+                    time.time() - self.active_buzz[1] + self.active_question[1]
             )  # readjust active question timer
             self.buzz_recording[self.round - 1][self.question - 1].append(
                 ["answer", correct, self.get_buzz_time(), username]
@@ -363,9 +366,9 @@ class Game:
 
             if correct:
                 self.active_question[1] = (
-                    time.time()
-                    - self.active_question[1]
-                    - self.rounds[self.round - 1][self.question - 1]
+                        time.time()
+                        - self.active_question[1]
+                        - self.rounds[self.round - 1][self.question - 1]
                 )  # readjust active question timer
                 if self.teams == 0:
                     self.points[username] += 10
@@ -399,9 +402,9 @@ class Game:
                 return self.active_buzz[2]
             else:
                 return (
-                    self.active_question[1]
-                    + self.rounds[self.round - 1][self.question - 1]
-                    - time.time()
+                        self.active_question[1]
+                        + self.rounds[self.round - 1][self.question - 1]
+                        - time.time()
                 )
         else:
             return self.rounds[self.round - 1][self.question - 1]
