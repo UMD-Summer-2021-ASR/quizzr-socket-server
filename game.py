@@ -189,7 +189,7 @@ class Game:
                 self.active_question[1] = self.active_question[1] + self.buzz_time
                 self.active_buzz = [False, 0, 0]
                 self.buzzer = ""
-                self.socketio.emit("answered", {}, to=self.gamecode)
+                self.socketio.emit("answeredincorrectly", {}, to=self.gamecode)
 
         if self.active_question[0]:  # in a question
             # if question time is over, check round & question number- go to gap OR to next round OR end game
