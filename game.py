@@ -1,11 +1,11 @@
-from inference.audio import AudioClassifier
+# from inference.audio import AudioClassifier
 import time
 import requests
 import random
 import json
 import recordings_database as rd
 import os
-from inference.classify import classify_and_upload
+# from inference.classify import classify_and_upload
 
 # HANDSHAKE = "Lt`cw%Y9sg*bJ_~KZ#;|rbfI)nx[r5"
 # export HLS_HANDSHAKE="Lt\`cw%Y9sg*bJ_~KZ#;|rbfI)nx[r5"
@@ -27,7 +27,7 @@ def get_minutes_seconds(seconds):
 
 
 class Game:
-    def __init__(self, lobby, socketio):
+    def __init__(self, lobby, socketio, lobby2=""):
         # TODO Set settings according to game type
         self.good_game = True
 
@@ -45,6 +45,10 @@ class Game:
         self.teams = lobby.settings["teams"]
         self.players = lobby.settings["players"]
         self.auth_token = lobby.auth_token
+
+        # Merging lobbies compatibility
+        if not (type(lobby2) is str):
+            self.players = [self.players, lobby2.settings['players']]
 
         # HLS Tokens
         self.socketio = socketio
@@ -172,6 +176,19 @@ class Game:
                 question_idx = (
                     ((self.round - 1) * self.questions_num) + self.question - 1
                 )
+
+                self.socketio.emit(
+                    "hlsupdate",
+                    {
+                        "rid": self.hls_rids[question_idx],
+                        "token": self.hls_tokens[question_idx],
+                        "classifiable": False
+                        # "classifiable": AudioClassifier.is_predictable(
+                        #     self.answering_ids[self.round - 1][self.question - 1]
+                        # ),
+                    },
+                    to=self.gamecode,
+                )
                 
                 self.socketio.emit("hlsplay", {}, to=self.gamecode)
                 self.active_gap = [False, 0]
@@ -221,17 +238,7 @@ class Game:
                         },
                     ).json()
                     self.hls_tokens[question_idx] = unlock_response["token"]
-                    self.socketio.emit(
-                        "hlsupdate",
-                        {
-                            "rid": self.hls_rids[question_idx],
-                            "token": self.hls_tokens[question_idx],
-                            "classifiable": AudioClassifier.is_predictable(
-                                self.answering_ids[self.round - 1][self.question - 1]
-                            ),
-                        },
-                        to=self.gamecode,
-                    )
+
                     
 
         return [
@@ -344,7 +351,8 @@ class Game:
         else:
             qid = self.answering_ids[self.round - 1][self.question - 1]
             print("classifier_answer found file")
-            correct = classify_and_upload(filename, qid)
+            correct = True
+            # correct = classify_and_upload(filename, qid)
             print(
                 "qb_id for current question: "
                 + str(self.answering_ids[self.round - 1][self.question - 1])

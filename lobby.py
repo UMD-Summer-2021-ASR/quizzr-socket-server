@@ -3,16 +3,30 @@ import time
 
 class Lobby:
     def __init__(self, initial_player, code, gamemode, auth_token):
-        self.settings = {
-            "players": [initial_player],  # List of players
-            "code": code,  # room code
-            "teams": 0,  # Number of teams
-            "max_players": 8,  # maximum total number of players in lobby
-            "rounds": 1,  # number of rounds
-            "questions_num": 3,  # number of questions per round
-            "gap_time": 5,  # time between questions
-            "post_buzz_time": 5  # time after questions players can still buzz
-        }
+        if gamemode == 'custom':
+            self.settings = {
+                "players": [initial_player],  # List of players
+                "code": code,  # room code
+                "teams": 0,  # Number of teams
+                "max_players": 8,  # maximum total number of players in lobby
+                "rounds": 1,  # number of rounds
+                "questions_num": 3,  # number of questions per round
+                "gap_time": 5,  # time between questions
+                "post_buzz_time": 5,  # time after questions players can still buzz
+                "gamemode": gamemode
+            }
+        elif gamemode == 'casualsolo':
+            self.settings = {
+                "players": [initial_player],  # List of players
+                "code": code,  # room code
+                "teams": 2,  # Number of teams
+                "max_players": 1,  # maximum total number of players in lobby
+                "rounds": 3,  # number of rounds
+                "questions_num": 2,  # number of questions per round
+                "gap_time": 5,  # time between questions
+                "post_buzz_time": 5,  # time after questions players can still buzz
+                "gamemode": gamemode
+            }
         self.start_time = time.time()
         self.auth_token = auth_token
         self.gamemode = gamemode
@@ -32,6 +46,9 @@ class Lobby:
     # Updates lobby settings
     def update_settings(self, settings):
         # TODO Clean input
+        if self.gamemode == 'casualsolo':
+            return
+
         for setting in settings:
             if setting == 'teams':  # adjust players list depending on team number
                 if self.settings['teams'] != settings['teams']:

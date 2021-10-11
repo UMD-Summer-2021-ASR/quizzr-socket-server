@@ -3,6 +3,7 @@ from flask_socketio import SocketIO, emit, join_room, leave_room, close_room
 from collections import deque
 import game
 import lobby
+import queue_handler
 import random
 import asyncio
 from nonsocketfunctions import lobbycode_generator, cache_user, get_user
@@ -14,6 +15,7 @@ import time
 import json
 import string
 from flask_cors import CORS
+
 ###
 
 ###
@@ -33,19 +35,59 @@ uids = {}  # username : UID
 lobbies = {}  # room name : lobby object
 games = {}  # room name : game object
 previous_gamestate = {}  # room name : game object (used for catching when to send next question
-clients = {}  # sid : username
+clients = {}  # username : sid
+
+# Queues
 queues = {
-    "casualsolo": deque([]),
-    "casualduo": deque([]),
-    "rankedsolo": deque([]),
-    "rankedduo": deque([]),
+    "casualsolo": queue_handler.Queue("casualsolo"),
+    "casualduo": queue_handler.Queue("casualduo"),
+    "rankedsolo": queue_handler.Queue("rankedsolo"),
+    "rankedduo": queue_handler.Queue("rankedduo"),
 }
 
 
-async def emit_game_state(sleep_time=0.1):
+async def check_queues(sleep_time=3):
+    while True:
+        for key in queues:
+            queue = queues[key]
+            match = queue.find_match()
+            while match:
+                print(key + ': Matching lobbies ' + match[0].settings['code'] + ' and ' + match[1].settings['code'])
+
+                # push lobbies together
+                lobby1 = match[0]
+                lobby2 = match[1]
+
+                players = []
+                for player in lobby1.settings['players']:
+                    players.append(player)
+                for player in lobby2.settings['players']:
+                    players.append(player)
+
+                lobbycode = lobbycode_generator(10)
+                while lobbycode in lobbies:
+                    lobbycode = lobbycode_generator(10)
+
+                single_game = game.Game(lobby1, socketio, lobby2)
+                if single_game.good_game:
+                    games[lobbycode] = single_game
+                    for player in players:
+                        current_lobby[player] = lobbycode
+                        sid = clients[player]
+                        socketio.emit('joinroom', {'room': lobbycode}, to=sid)
+
+                    lobby1.game_started = True
+                    lobby2.game_started = True
+                    print("Starting " + key + " lobby. Code: " + lobbycode)
+                    socketio.emit('gamestarted', {}, to=lobbycode)
+                # TODO push lobbies together and start game
+                match = queue.find_match()
+        await asyncio.sleep(sleep_time)
+
+
+async def emit_game_state(sleep_time=0.2):
     while True:
         for gamecode in games:
-            #
             gamestate = games[gamecode].gamestate()
             if gamecode in previous_gamestate:
                 if previous_gamestate[gamecode][2] != gamestate[2]:
@@ -58,7 +100,7 @@ async def emit_game_state(sleep_time=0.1):
         await asyncio.sleep(sleep_time)
 
 
-async def emit_lobby_state(sleep_time=0.1):
+async def emit_lobby_state(sleep_time=0.2):
     while True:
         for lobbycode in lobbies:
             socketio.emit('lobbystate', lobbies[lobbycode].state(), to=lobbycode)
@@ -91,6 +133,18 @@ async def clean_lobbies_and_games(sleep_time=30):
 def sessions():
     return render_template('session.html')
 
+@socketio.on('joinroom')
+def lobby_loading(json, methods=['GET', 'POST']):
+    user = get_user(json['auth'])
+    lobby = current_lobby[user['username']]
+    username = user['username']
+    target_room = json['room']
+
+    if (username in games[target_room].players) or (username in games[target_room].players[0]) or (username in games[target_room].players[1]):
+        join_room(target_room)
+        emit('gamestarted', {})
+
+    print(username + ' joined room ' + target_room)
 
 # Socket endpoint for sending all users in a lobby to the lobby loading screen while the streams are created
 @socketio.on('lobbyloading')  # makes user in lobby go to loading screen
@@ -108,7 +162,7 @@ def start_lobby(json, methods=['GET', 'POST']):
     user = get_user(json['auth'])
     username = user['username']
 
-    clients[request.sid] = username
+    clients[username] = request.sid
     lobbycode = lobbycode_generator(6)
     while lobbycode in lobbies:
         lobbycode = lobbycode_generator(6)
@@ -128,7 +182,7 @@ def join_lobby(json, methods=['GET', 'POST']):
     username = user['username']
     lobbycode = json['lobby']
 
-    clients[request.sid] = username
+    clients[username] = request.sid
     if not (lobbycode in lobbies):
         emit('alert', ['error', 'Lobby ' + str(lobbycode) + ' does not exist'])
         return
@@ -177,6 +231,23 @@ def leave_lobby(json, methods=['GET', 'POST']):
     lobbies[lobby].leave(username)
     emit('lobbystate', lobbies[lobby].state(), to=lobby)
     emit('alert', ['show', str(username) + ' left the lobby'], to=lobby)
+
+
+# Socket endpoint for joining a queue from a lobby
+@socketio.on('joinqueue')
+def join_queue(json, methods=['GET', 'POST']):
+    # Sends lobby to queue
+    user = get_user(json['auth'])
+    lobby = current_lobby[user['username']]
+    username = user['username']
+
+    clients[username] = request.sid
+    res = queues[lobbies[lobby].gamemode].join(lobbies[lobby])
+    if res:
+        emit('alert', ['success', 'Successfully joined queue'], to=lobby)
+        # TODO emit to change page for in queue
+    else:
+        emit('alert', ['error', 'Failed to join queue'])
 
 
 # Socket endpoint for starting a game from a lobby
@@ -266,6 +337,7 @@ def audioanswerupload():
     response = jsonify({'filename': filename})
     return response
 
+
 # Runs the flask socketio server
 def run_socketio():
     socketio.run(app, port=4000, host='0.0.0.0')
@@ -278,11 +350,13 @@ def run_flask():
 
 # Runs the asyncio tasks
 def run_asyncio():
+    print('hi')
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     loop.create_task(emit_game_state())
     loop.create_task(emit_lobby_state())
     loop.create_task(clean_lobbies_and_games())
+    loop.create_task(check_queues())
     loop.run_forever()
 
 
