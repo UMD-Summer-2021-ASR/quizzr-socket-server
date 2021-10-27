@@ -2,7 +2,6 @@ import random
 from firebase_admin import auth
 import requests
 import os
-BACKEND_URL_2 = os.environ.get("BACKEND_URL")
 
 
 def lobbycode_generator(size=6, chars='ABCDEFGHIJKLMNPQRSTUVWXYZ123456789'):
@@ -19,8 +18,9 @@ def get_user(authtoken):
 
 
 def cache_user(authtoken):
+    BACKEND_URL_2 = os.environ.get("BACKEND_URL")
     decoded_token = auth.verify_id_token(authtoken)
-    url = BACKEND_URL_2  + "/profile"
+    url = BACKEND_URL_2 + "/profile"
     header = {'Authorization': authtoken}
     uid = decoded_token['uid']
     profile = requests.get(url, headers=header).json()

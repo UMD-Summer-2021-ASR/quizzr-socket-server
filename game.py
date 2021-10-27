@@ -1,17 +1,14 @@
-from inference.audio import AudioClassifier
+# from inference.audio import AudioClassifier
 import time
 import requests
 import random
 import json
 import recordings_database as rd
 import os
-from inference.classify import classify_and_upload
+# from inference.classify import classify_and_upload
 
-# HANDSHAKE = "Lt`cw%Y9sg*bJ_~KZ#;|rbfI)nx[r5"
-# export HLS_HANDSHAKE="Lt\`cw%Y9sg*bJ_~KZ#;|rbfI)nx[r5"
-HANDSHAKE = os.environ.get("HLS_HANDSHAKE")  # used for HLS
-BACKEND_URL = os.environ.get("BACKEND_URL")
-HLS_URL = os.environ.get("HLS_URL")
+# os.environ.get("HLS_HANDSHAKE") = "Lt`cw%Y9sg*bJ_~KZ#;|rbfI)nx[r5"
+# export HLS_os.environ.get("HLS_HANDSHAKE")="Lt\`cw%Y9sg*bJ_~KZ#;|rbfI)nx[r5"
 
 
 # returns the final time of a VTT string passed in
@@ -52,7 +49,7 @@ class Game:
         self.hls_tokens = []
         try:
             raw_questions = requests.get(
-                BACKEND_URL + "/question",
+                os.environ.get("BACKEND_URL") + "/question",
                 params={"batchSize": self.questions_num * self.rounds_num},
                 headers={"Authorization": self.auth_token},
             ).json()["results"]
@@ -83,9 +80,9 @@ class Game:
 
             try:
                 hls_response = requests.post(
-                    HLS_URL + "/api/batch",
+                    os.environ.get("HLS_URL") + "/api/batch",
                     data={
-                        "handshake": HANDSHAKE,
+                        "handshake": os.environ.get("HLS_HANDSHAKE"),
                         "qids": [i[0] for i in self.questions],
                         "expiry": str(expiry_time)
                         # all the questions added up + the gap times between them + 30 seconds
@@ -152,8 +149,8 @@ class Game:
                 self.answering_ids.append(answering_ids1)
 
             unlock_response = requests.post(
-                HLS_URL + "/api/unlock",
-                data={"handshake": HANDSHAKE, "rid": self.hls_rids[0]},
+                os.environ.get("HLS_URL") + "/api/unlock",
+                data={"handshake": os.environ.get("HLS_HANDSHAKE"), "rid": self.hls_rids[0]},
             ).json()
             self.hls_tokens[0] = unlock_response["token"]
         except:
@@ -214,9 +211,9 @@ class Game:
                             ((self.round - 1) * self.questions_num) + self.question - 1
                     )
                     unlock_response = requests.post(
-                        HLS_URL + "/api/unlock",
+                        os.environ.get("HLS_URL") + "/api/unlock",
                         data={
-                            "handshake": HANDSHAKE,
+                            "handshake": os.environ.get("HLS_HANDSHAKE"),
                             "rid": self.hls_rids[question_idx],
                         },
                     ).json()
@@ -226,9 +223,10 @@ class Game:
                         {
                             "rid": self.hls_rids[question_idx],
                             "token": self.hls_tokens[question_idx],
-                            "classifiable": AudioClassifier.is_predictable(
-                                self.answering_ids[self.round - 1][self.question - 1]
-                            ),
+                            "classifiable": True
+                            # "classifiable": AudioClassifier.is_predictable(
+                            #     self.answering_ids[self.round - 1][self.question - 1]
+                            # ),
                         },
                         to=self.gamecode,
                     )
@@ -251,7 +249,7 @@ class Game:
         # question_idx = ((self.round-1) * self.questions_num) + self.question
         # hls_response = requests.post('http://127.0.0.1:3500/token',
         #                                 data={
-        #                                     'handshake': HANDSHAKE,
+        #                                     'handshake': os.environ.get("HLS_HANDSHAKE"),
         #                                     'qid': self.questions[question_idx][0]
         #                                 }
         #                              )
@@ -279,7 +277,7 @@ class Game:
         else:
             correct = json.loads(
                 requests.get(
-                    BACKEND_URL + "/answer",
+                    os.environ.get("BACKEND_URL") + "/answer",
                     params={
                         "a": answer,
                         "qid": self.answering_ids[self.round - 1][self.question - 1],
@@ -344,7 +342,8 @@ class Game:
         else:
             qid = self.answering_ids[self.round - 1][self.question - 1]
             print("classifier_answer found file")
-            correct = classify_and_upload(filename, qid)
+            correct = True
+            # correct = classify_and_upload(filename, qid)
             print(
                 "qb_id for current question: "
                 + str(self.answering_ids[self.round - 1][self.question - 1])
@@ -449,7 +448,7 @@ class Game:
 
         recording_code = rd.database.add_recording(recording_json)
         requests.post(
-            BACKEND_URL + "/game",
+            os.environ.get("BACKEND_URL") + "/game",
             json={"id": recording_code, "session": recording_json},
         )
         print(
