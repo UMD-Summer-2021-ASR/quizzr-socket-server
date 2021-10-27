@@ -1,12 +1,29 @@
+import time
+import rating_handler as rt
+
+
+def time_elapsed_sigmoid(t, div=60):
+    # parameters: t = original time, div = how much to divide the time by (e.g. 60 for a minute)
+    elapsed_time = time.time() - t
+    return 1 / (1 + 2.71 ** elapsed_time / div)
+
+
 class Queue:
     def __init__(self, key):
         self.key = key
-        self.queue = []
-        self.queueSettings = []  # TODO add queue settings to define good match
+        self.queue = []  # each element is [username, time in queue]
+        self.queueSettings = {
+            "max_match_range": 500
+        }
 
     # returns if two lobbies are a good match
     def good_match(self, a, b):
-        return True
+        acceptable_difference_a = self.queueSettings['max_match_range'] * time_elapsed_sigmoid(a[1])
+        acceptable_difference_b = self.queueSettings['max_match_range'] * time_elapsed_sigmoid(a[2])
+
+        difference = rt.compare(a[0], a[1])
+
+        return acceptable_difference_a >= difference and acceptable_difference_b >= difference
 
     # greedily finds matches between lobbies in the queue
     # if found, returns them in list
@@ -31,5 +48,5 @@ class Queue:
         if lobby.gamemode != self.key:
             return False
 
-        self.queue.append(lobby)
+        self.queue.append([lobby, time.time()])
         return True

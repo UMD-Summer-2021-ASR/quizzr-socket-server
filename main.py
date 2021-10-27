@@ -150,9 +150,14 @@ def lobby_loading(json, methods=['GET', 'POST']):
 @socketio.on('lobbyloading')  # makes user in lobby go to loading screen
 def lobby_loading(json, methods=['GET', 'POST']):
     user = get_user(json['auth'])
-    lobby = current_lobby[user['username']]
+    lobbycode = current_lobby[user['username']]
     username = user['username']
-    emit('lobbyloading', {}, to=lobby)
+
+    lobby = lobbies[lobbycode]
+    if lobby.gamemode == 'casualsolo':
+        emit('findingmatch', {}, to=lobbycode)
+    elif lobby.gamemode == 'custom':
+        emit('lobbyloading', {}, to=lobbycode)
 
 
 # Socket endpoint for starting a lobby
