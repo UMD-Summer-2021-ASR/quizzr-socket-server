@@ -169,8 +169,18 @@ class Game:
                 question_idx = (
                     ((self.round - 1) * self.questions_num) + self.question - 1
                 )
-                
-                self.socketio.emit("hlsplay", {}, to=self.gamecode)
+
+                self.socketio.emit(
+                    "hlsupdate",
+                    {
+                        "rid": self.hls_rids[question_idx],
+                        "token": self.hls_tokens[question_idx],
+                        "classifiable": AudioClassifier.is_predictable(
+                            self.answering_ids[self.round - 1][self.question - 1]
+                        ),
+                    },
+                    to=self.gamecode,
+                )
                 self.active_gap = [False, 0]
                 self.active_question = [True, time.time()]
 
@@ -218,18 +228,6 @@ class Game:
                         },
                     ).json()
                     self.hls_tokens[question_idx] = unlock_response["token"]
-                    self.socketio.emit(
-                        "hlsupdate",
-                        {
-                            "rid": self.hls_rids[question_idx],
-                            "token": self.hls_tokens[question_idx],
-                            "classifiable": True
-                            # "classifiable": AudioClassifier.is_predictable(
-                            #     self.answering_ids[self.round - 1][self.question - 1]
-                            # ),
-                        },
-                        to=self.gamecode,
-                    )
                     
 
         return [
