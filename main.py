@@ -14,15 +14,9 @@ import time
 import json
 import string
 from flask_cors import CORS
-###
-
-###
 
 app = Flask(__name__)
 CORS(app)
-# os.environ[
-#     'GOOGLE_APPLICATION_CREDENTIALS'] = '/Users/andrewchen/PycharmProjects/quizzr-socket-server/secrets/quizzrio-firebase-adminsdk-m39pr-6e4a9cfa44.json';
-# export GOOGLE_APPLICATION_CREDENTIALS="/Users/andrewchen/PycharmProjects/quizzr-socket-server/secrets/quizzrio-firebase-adminsdk-m39pr-6e4a9cfa44.json"
 firebase_app = initialize_app()
 app.config['SECRET_KEY'] = '3ca170251cc76400b62d4f4feb73896c5ee84ebddabf5e82'
 socketio = SocketIO(app, cors_allowed_origins="*")
@@ -45,7 +39,6 @@ queues = {
 async def emit_game_state(sleep_time=0.1):
     while True:
         for gamecode in games:
-            #
             gamestate = games[gamecode].gamestate()
             if gamecode in previous_gamestate:
                 if previous_gamestate[gamecode][2] != gamestate[2]:
@@ -268,12 +261,12 @@ def audioanswerupload():
 
 # Runs the flask socketio server
 def run_socketio():
-    socketio.run(app, port=4000, host='0.0.0.0')
+    socketio.run(app, port=int(os.environ.get("SOCKET_PORT")), host='0.0.0.0')
 
 
 # Runs the flask server
 def run_flask():
-    app.run(port=2000, host="0.0.0.0")
+    app.run(port=int(os.environ.get("SOCKET_FLASK_PORT")), host="0.0.0.0")
 
 
 # Runs the asyncio tasks

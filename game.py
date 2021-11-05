@@ -13,7 +13,7 @@ import os
 
 # returns the final time of a VTT string passed in
 def get_final_time(vtt):
-    return float(vtt.split("\n")[-4].split(":")[-1])
+    return float(vtt.split("\n")[-2].split(":")[-1])
 
 
 def get_minutes_seconds(seconds):
@@ -153,7 +153,8 @@ class Game:
                 data={"handshake": os.environ.get("HLS_HANDSHAKE"), "rid": self.hls_rids[0]},
             ).json()
             self.hls_tokens[0] = unlock_response["token"]
-        except:
+        except Exception as e:
+            print(e)
             self.good_game = False
             socketio.emit("startgamefailed")
             socketio.emit("alert", ["error", "Starting game failed"], to=self.gamecode)
@@ -175,9 +176,10 @@ class Game:
                     {
                         "rid": self.hls_rids[question_idx],
                         "token": self.hls_tokens[question_idx],
-                        "classifiable": AudioClassifier.is_predictable(
-                            self.answering_ids[self.round - 1][self.question - 1]
-                        ),
+                        "classifiable": False
+                        #     AudioClassifier.is_predictable(
+                        #     self.answering_ids[self.round - 1][self.question - 1]
+                        # ),
                     },
                     to=self.gamecode,
                 )
