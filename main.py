@@ -22,6 +22,8 @@ firebase_app = initialize_app()
 app.config['SECRET_KEY'] = os.environ.get("FLASK_SECRET_KEY")
 socketio = SocketIO(app, cors_allowed_origins="*")
 
+
+# SHARED BETWEEN THREADS
 current_lobby = {}  # UID : room name
 usernames = {}  # UID : username
 uids = {}  # username : UID
@@ -35,8 +37,9 @@ queues = {
     "rankedsolo": deque([]),
     "rankedduo": deque([]),
 }
+# SHARED BETWEEN THREADS
 
-async def emit_game_state(sleep_time=0.1):
+async def emit_game_state(sleep_time=0.1): # emits the game state (time left on clock, who is buzzing, time remaining in the buzz, points, etc.)
     while True:
         for gamecode in games:
             gamestate = games[gamecode].gamestate()
@@ -52,7 +55,7 @@ async def emit_game_state(sleep_time=0.1):
 
 
 
-async def emit_lobby_state(sleep_time=0.1):
+async def emit_lobby_state(sleep_time=0.1): # emits the lobby state (synchronizes lobby settings between all players in the lobby)
     while True:
         for lobbycode in lobbies:
             socketio.emit('lobbystate', lobbies[lobbycode].state(), to=lobbycode)
@@ -60,7 +63,7 @@ async def emit_lobby_state(sleep_time=0.1):
 
 
 # TODO fix with UID support
-async def clean_lobbies_and_games(sleep_time=30):
+async def clean_lobbies_and_games(sleep_time=30): # cleans dead lobbies and games (0 players, game ended, etc.)
     while True:
         current_time = time.time()
         for lobbycode in list(lobbies):
@@ -270,20 +273,20 @@ def run_flask():
     app.run(port=int(os.environ.get("SOCKET_FLASK_PORT")), host="0.0.0.0")
 
 
-# Runs the asyncio tasks
+# Runs the asyncio tasks permanently (game state, lobby state, cleaning dead lobbies and games)
 def run_asyncio():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    loop.create_task(emit_game_state())
-    loop.create_task(emit_lobby_state())
-    loop.create_task(clean_lobbies_and_games())
+    loop.create_task(emit_game_state()) # emits the game state (time left on clock, who is buzzing, time remaining in the buzz, points, etc.)
+    loop.create_task(emit_lobby_state()) # emits the lobby state (synchronizes lobby settings between all players in the lobby)
+    loop.create_task(clean_lobbies_and_games()) # cleans dead lobbies and games (0 players, game ended, etc.)
     loop.run_forever()
 
 
 if __name__ == '__main__':
-    socket_thread = threading.Thread(target=run_socketio)
-    flask_thread = threading.Thread(target=run_flask)
-    asyncio_thread = threading.Thread(target=run_asyncio)
+    socket_thread = threading.Thread(target=run_socketio) # Thread that runs the socket server
+    flask_thread = threading.Thread(target=run_flask) # Thread that runs the flask server
+    asyncio_thread = threading.Thread(target=run_asyncio) # Thread that runs asynchronous tasks that are permanently running (game state, lobby state, cleaning dead lobbies and games)
     socket_thread.start()
     flask_thread.start()
     asyncio_thread.start()
