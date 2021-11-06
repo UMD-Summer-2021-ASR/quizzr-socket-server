@@ -15,10 +15,11 @@ import json
 import string
 from flask_cors import CORS
 
+
 app = Flask(__name__)
 CORS(app)
 firebase_app = initialize_app()
-app.config['SECRET_KEY'] = '3ca170251cc76400b62d4f4feb73896c5ee84ebddabf5e82'
+app.config['SECRET_KEY'] = os.environ.get("FLASK_SECRET_KEY")
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 current_lobby = {}  # UID : room name
@@ -35,7 +36,6 @@ queues = {
     "rankedduo": deque([]),
 }
 
-
 async def emit_game_state(sleep_time=0.1):
     while True:
         for gamecode in games:
@@ -49,6 +49,7 @@ async def emit_game_state(sleep_time=0.1):
             socketio.emit('gamestate', games[gamecode].gamestate(), to=gamecode)
             previous_gamestate[gamecode] = gamestate
         await asyncio.sleep(sleep_time)
+
 
 
 async def emit_lobby_state(sleep_time=0.1):
