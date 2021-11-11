@@ -1,10 +1,11 @@
+import eventlet
+eventlet.monkey_patch()
 from flask import Flask, render_template, request, jsonify
 from flask_socketio import SocketIO, emit, join_room, leave_room, close_room
 from collections import deque
 import game
 import lobby
 import random
-import asyncio
 from nonsocketfunctions import lobbycode_generator, cache_user, get_user
 from firebase_admin import auth, initialize_app
 import os
@@ -15,13 +16,11 @@ import json
 import string
 from flask_cors import CORS
 
-
 app = Flask(__name__)
 CORS(app)
 firebase_app = initialize_app()
 app.config['SECRET_KEY'] = os.environ.get("FLASK_SECRET_KEY")
 socketio = SocketIO(app, cors_allowed_origins="*")
-
 
 # SHARED BETWEEN THREADS
 current_lobby = {}  # UID : room name
@@ -37,9 +36,12 @@ queues = {
     "rankedsolo": deque([]),
     "rankedduo": deque([]),
 }
+
+
 # SHARED BETWEEN THREADS
 
-async def emit_game_state(sleep_time=0.1): # emits the game state (time left on clock, who is buzzing, time remaining in the buzz, points, etc.)
+def emit_game_state(sleep_time=0.1):  # emits the game state (time left on clock, who is buzzing, time remaining in
+    # the buzz, points, etc.)
     while True:
         for gamecode in games:
             gamestate = games[gamecode].gamestate()
@@ -51,19 +53,19 @@ async def emit_game_state(sleep_time=0.1): # emits the game state (time left on 
                 # socketio.emit('newquestion', games[gamecode].get_new_question(), to=gamecode)
             socketio.emit('gamestate', games[gamecode].gamestate(), to=gamecode)
             previous_gamestate[gamecode] = gamestate
-        await asyncio.sleep(sleep_time)
+        eventlet.sleep(sleep_time)
 
 
-
-async def emit_lobby_state(sleep_time=0.1): # emits the lobby state (synchronizes lobby settings between all players in the lobby)
+def emit_lobby_state(
+        sleep_time=0.1):  # emits the lobby state (synchronizes lobby settings between all players in the lobby)
     while True:
         for lobbycode in lobbies:
             socketio.emit('lobbystate', lobbies[lobbycode].state(), to=lobbycode)
-        await asyncio.sleep(sleep_time)
+        eventlet.sleep(sleep_time)
 
 
 # TODO fix with UID support
-async def clean_lobbies_and_games(sleep_time=30): # cleans dead lobbies and games (0 players, game ended, etc.)
+def clean_lobbies_and_games(sleep_time=30):  # cleans dead lobbies and games (0 players, game ended, etc.)
     while True:
         current_time = time.time()
         for lobbycode in list(lobbies):
@@ -81,7 +83,7 @@ async def clean_lobbies_and_games(sleep_time=30): # cleans dead lobbies and game
                 lobbies.pop(gamecode, None)
                 games.pop(gamecode, None)
                 print('Closed game ' + str(gamecode))
-        await asyncio.sleep(sleep_time)
+        eventlet.sleep(sleep_time)
 
 
 @app.route('/')
@@ -144,7 +146,7 @@ def join_lobby(json, methods=['GET', 'POST']):
 def switch_team(json, methods=['GET', 'POST']):
     user = get_user(json['auth'])
     lobby = current_lobby[user['username']]
-
+    x = 5/0
     result = lobbies[lobby].switch_team(json['user'])
     if result:
         emit('lobbystate', lobbies[lobby].state(), to=lobby)
@@ -263,9 +265,10 @@ def audioanswerupload():
     response = jsonify({'filename': filename})
     return response
 
+
 # Runs the flask socketio server
 def run_socketio():
-    socketio.run(app, port=int(os.environ.get("SOCKET_PORT")), host='0.0.0.0')
+    pass
 
 
 # Runs the flask server
@@ -273,20 +276,20 @@ def run_flask():
     app.run(port=int(os.environ.get("SOCKET_FLASK_PORT")), host="0.0.0.0")
 
 
-# Runs the asyncio tasks permanently (game state, lobby state, cleaning dead lobbies and games)
-def run_asyncio():
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.create_task(emit_game_state()) # emits the game state (time left on clock, who is buzzing, time remaining in the buzz, points, etc.)
-    loop.create_task(emit_lobby_state()) # emits the lobby state (synchronizes lobby settings between all players in the lobby)
-    loop.create_task(clean_lobbies_and_games()) # cleans dead lobbies and games (0 players, game ended, etc.)
-    loop.run_forever()
+# # Runs the asyncio tasks permanently (game state, lobby state, cleaning dead lobbies and games)
+# def run_asyncio():
+#     loop = asyncio.new_event_loop()
+#     asyncio.set_event_loop(loop)
+#     loop.create_task(
+#         emit_game_state())  # emits the game state (time left on clock, who is buzzing, time remaining in the buzz, points, etc.)
+#     loop.create_task(
+#         emit_lobby_state())  # emits the lobby state (synchronizes lobby settings between all players in the lobby)
+#     loop.create_task(clean_lobbies_and_games())  # cleans dead lobbies and games (0 players, game ended, etc.)
+#     loop.run_forever()
 
 
 if __name__ == '__main__':
-    socket_thread = threading.Thread(target=run_socketio) # Thread that runs the socket server
-    flask_thread = threading.Thread(target=run_flask) # Thread that runs the flask server
-    asyncio_thread = threading.Thread(target=run_asyncio) # Thread that runs asynchronous tasks that are permanently running (game state, lobby state, cleaning dead lobbies and games)
-    socket_thread.start()
-    flask_thread.start()
-    asyncio_thread.start()
+    eventlet.spawn(emit_game_state)
+    eventlet.spawn(emit_lobby_state)
+    eventlet.spawn(clean_lobbies_and_games)
+    socketio.run(app, port=int(os.environ.get("SOCKET_PORT")), host='0.0.0.0', log_output=True)
