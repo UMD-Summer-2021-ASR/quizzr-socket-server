@@ -146,7 +146,7 @@ def join_lobby(json, methods=['GET', 'POST']):
 def switch_team(json, methods=['GET', 'POST']):
     user = get_user(json['auth'])
     lobby = current_lobby[user['username']]
-    x = 5/0
+
     result = lobbies[lobby].switch_team(json['user'])
     if result:
         emit('lobbystate', lobbies[lobby].state(), to=lobby)
