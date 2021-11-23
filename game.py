@@ -114,6 +114,7 @@ class Game:
             self.round = 1  # current round
             self.question = 1  # current question
             self.buzzer = ""  # username of person who buzzed
+            self.prev_answers = []
             self.points = {}
             if self.teams == 0:
                 for player in self.players:
@@ -170,6 +171,7 @@ class Game:
                 question_idx = (
                     ((self.round - 1) * self.questions_num) + self.question - 1
                 )
+                self.prev_answers = [] # clear previous answers
 
                 self.socketio.emit(
                     "hlsupdate",
@@ -204,9 +206,17 @@ class Game:
             # if question time is over, check round & question number- go to gap OR to next round OR end game
             unlock_next = True
             if self.get_question_time() <= 0:
+                if len(self.prev_answers) == 0 or not self.prev_answers[-1][1] or self.prev_answers[-1][0] == 'Answered via classifier':
+                    correct_answer = requests.get(
+                        os.environ.get("BACKEND_URL") + "/answer_full/" + str(self.answering_ids[self.round - 1][self.question - 1])
+                    ).json()
+                    self.prev_answers.append([correct_answer['answer'], True])
                 self.question += 1
                 self.active_gap = [True, time.time()]
                 self.active_question = [False, 0]
+                # add correct answers to answer list
+
+
                 if self.question > self.questions_num:
                     self.question = 1
                     self.round += 1
@@ -241,6 +251,7 @@ class Game:
             self.get_gap_time(),
             self.buzzer,
             self.points,
+            self.prev_answers
         ]
 
     # gets new question + tells HLS to get new question
@@ -298,6 +309,7 @@ class Game:
                 + " was "
                 + ("correct" if correct else "incorrect")
             )
+            self.prev_answers.append([answer, correct])
             self.active_question[1] = (
                     time.time() - self.active_buzz[1] + self.active_question[1]
             )  # readjust active question timer
@@ -356,6 +368,7 @@ class Game:
                 + " was classified as "
                 + ("correct" if correct else "incorrect")
             )
+            self.prev_answers.append(["Answered via classifier", correct])
             self.active_question[1] = (
                     time.time() - self.active_buzz[1] + self.active_question[1]
             )  # readjust active question timer

@@ -219,6 +219,23 @@ def answer(json, methods=['GET', 'POST']):
         emit('alert', ['error', "You can't answer right now"])
 
 
+# Socket endpoint for giving vote feedback
+@socketio.on('feedback')
+def answer(json, methods=['GET', 'POST']):
+    user = get_user(json['auth'])
+    username = user['username']
+    lobby = current_lobby[user['username']]
+    vote = json['vote']
+    print(username + " rated a recording " + vote)
+    if lobby in games.keys():
+        game = games[lobby]
+        qid = game.questions[game.question-1][0]
+        if vote == "good":
+            requests.patch(os.environ.get("BACKEND_URL")+'/upvote/'+qid, headers={"Authorization": json['auth']})
+        if vote == "bad":
+            requests.patch(os.environ.get("BACKEND_URL")+'/downvote/'+qid, headers={"Authorization": json['auth']})
+
+
 # Socket endpoint for classifier results
 @socketio.on('audioanswer')
 def audioanswer(json, methods=['GET', 'POST']):
