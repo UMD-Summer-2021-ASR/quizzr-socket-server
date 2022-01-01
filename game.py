@@ -270,7 +270,9 @@ class Game:
     # makes adjustments to timers when buzzing
     def buzz(self, username):
         if self.active_buzz[0] or not self.active_question[0]:
-            return False
+            return 0
+        elif any(username in sublist for sublist in self.buzz_recording[self.round - 1][self.question - 1]):
+            return 1
         else:
             self.buzzer = username
             self.active_buzz = [True, time.time(), self.get_question_time(), username]
@@ -278,7 +280,7 @@ class Game:
                 ["buzz", self.active_buzz[2], username]
             )
             print("Buzzed at: " + str(self.active_buzz[2]))
-            return True
+            return 2
 
     # check answer while buzzed
     def answer(self, username, answer):

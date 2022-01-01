@@ -20,7 +20,7 @@ app = Flask(__name__)
 CORS(app)
 firebase_app = initialize_app()
 app.config['SECRET_KEY'] = os.environ.get("FLASK_SECRET_KEY")
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, cors_allowed_origins="*", logger=True)
 
 # SHARED BETWEEN THREADS
 current_lobby = {}  # UID : room name
@@ -201,10 +201,13 @@ def buzz(json, methods=['GET', 'POST']):
     username = user['username']
 
     buzzed = games[lobby].buzz(username)
-    if buzzed:
+    if buzzed == 2:
         emit('buzzed', username, to=lobby)
-    else:
+    elif buzzed == 1:
+        emit('alert', ['error', "You can't buzz twice"])
+    elif buzzed == 0:
         emit('alert', ['error', "You can't buzz right now"])
+
 
 
 # Socket endpoint for answering by text
