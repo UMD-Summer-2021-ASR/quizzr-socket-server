@@ -10,13 +10,6 @@ def lobbycode_generator(size=6, chars='ABCDEFGHIJKLMNPQRSTUVWXYZ123456789'):
 
 usernames = {}
 
-
-def get_user(authtoken):
-    decoded_token = auth.verify_id_token(authtoken)
-    uid = decoded_token['uid']
-    return {'uid': uid, 'username': usernames[uid]}
-
-
 def cache_user(authtoken):
     BACKEND_URL_2 = os.environ.get("BACKEND_URL")
     decoded_token = auth.verify_id_token(authtoken)
@@ -25,3 +18,16 @@ def cache_user(authtoken):
     uid = decoded_token['uid']
     profile = requests.get(url, headers=header).json()
     usernames[uid] = profile['username']
+
+def get_user(authtoken):
+    try:
+        decoded_token = auth.verify_id_token(authtoken)
+        uid = decoded_token['uid']
+        return {'uid': uid, 'username': usernames[uid]}
+    except:
+        cache_user(authtoken)
+        decoded_token = auth.verify_id_token(authtoken)
+        uid = decoded_token['uid']
+        return {'uid': uid, 'username': usernames[uid]}
+
+

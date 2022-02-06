@@ -11,7 +11,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 from flask import Flask, render_template, request, jsonify
 from flask_socketio import SocketIO, emit, join_room, leave_room, close_room
 from collections import deque
-import gamex
+import game
 import lobby
 import random
 from nonsocketfunctions import lobbycode_generator, cache_user, get_user

@@ -1,4 +1,5 @@
 import eventlet
+
 eventlet.monkey_patch()
 from flask import Flask, render_template, request, jsonify
 from flask_socketio import SocketIO, emit, join_room, leave_room, close_room
@@ -15,6 +16,7 @@ import time
 import json
 import string
 from flask_cors import CORS
+import operator
 
 app = Flask(__name__)
 CORS(app)
@@ -30,6 +32,8 @@ lobbies = {}  # room name : lobby object
 games = {}  # room name : game object
 previous_gamestate = {}  # room name : game object (used for catching when to send next question
 clients = {}  # sid : username
+score_events = deque([])
+leaderboard = []
 queues = {
     "casualsolo": deque([]),
     "casualduo": deque([]),
@@ -64,6 +68,37 @@ def emit_lobby_state(
         eventlet.sleep(sleep_time)
 
 
+def leaderboard_find(player, x):
+    for i in range(len(x)):
+        if x[i][0] == player:
+            return i
+    return -1
+
+
+# adds score to leaderboard
+def add_score(player, score):
+    current_time = time.time()
+    score_events.append([current_time, player, score])
+    idx = leaderboard_find(player, leaderboard)
+    if idx > -1:
+        leaderboard[idx][1] += score
+    else:
+        leaderboard.append([player, score])
+
+
+def clean_leaderboards():
+    current_time = time.time()
+    while score_events:
+        left_ele = score_events.popleft()
+        if current_time - left_ele[0] < 86400:
+            score_events.appendleft(left_ele)
+            break
+        idx = leaderboard_find(left_ele[1], leaderboard)
+        leaderboard[idx][1] -= left_ele[2]
+        if leaderboard[idx][1] == 0:
+            del leaderboard[idx]
+
+
 # TODO fix with UID support
 def clean_lobbies_and_games(sleep_time=30):  # cleans dead lobbies and games (0 players, game ended, etc.)
     while True:
@@ -79,7 +114,17 @@ def clean_lobbies_and_games(sleep_time=30):  # cleans dead lobbies and games (0 
                 socketio.close_room(lobbycode)
                 print('Closed lobby ' + str(lobbycode) + ' due to inactivity')
         for gamecode in list(games):
-            if not games[gamecode].active_game:
+            game = games[gamecode]
+            if not game.active_game:
+                final_pts = game.points
+                if game.teams == 0:
+                    for player in final_pts:
+                        add_score(player, final_pts[player])
+                elif game.teams == 2:
+                    for team in final_pts:
+                        for player in team:
+                            add_score(player, team[player])
+
                 lobbies.pop(gamecode, None)
                 games.pop(gamecode, None)
                 print('Closed game ' + str(gamecode))
@@ -209,7 +254,6 @@ def buzz(json, methods=['GET', 'POST']):
         emit('alert', ['error', "You can't buzz right now"])
 
 
-
 # Socket endpoint for answering by text
 @socketio.on('answer')
 def answer(json, methods=['GET', 'POST']):
@@ -232,11 +276,11 @@ def answer(json, methods=['GET', 'POST']):
     print(username + " rated a recording " + vote)
     if lobby in games.keys():
         game = games[lobby]
-        qid = game.questions[game.question-1][0]
+        qid = game.questions[game.question - 1][0]
         if vote == "good":
-            requests.patch(os.environ.get("BACKEND_URL")+'/upvote/'+qid, headers={"Authorization": json['auth']})
+            requests.patch(os.environ.get("BACKEND_URL") + '/upvote/' + qid, headers={"Authorization": json['auth']})
         if vote == "bad":
-            requests.patch(os.environ.get("BACKEND_URL")+'/downvote/'+qid, headers={"Authorization": json['auth']})
+            requests.patch(os.environ.get("BACKEND_URL") + '/downvote/' + qid, headers={"Authorization": json['auth']})
 
 
 # Socket endpoint for classifier results
@@ -249,6 +293,25 @@ def audioanswer(json, methods=['GET', 'POST']):
     answered = games[lobby].classifier_answer(username, json['filename'])
     if not answered:
         emit('alert', ['error', "You can't answer right now"])
+
+
+# Socket endpoint for getting the leaderboard
+@socketio.on('leaderboards')
+def leaderboards(json, methods=['GET', 'POST']):
+    user = get_user(json['auth'])
+    username = user['username']
+
+    clean_leaderboards()
+    leaderboard1 = sorted(leaderboard, key=operator.itemgetter(1), reverse=True)
+    try:
+        idx = leaderboard_find(username, leaderboard1)
+        if idx == -1:
+            emit('leaderboards', {'leaderboard': leaderboard1[0:10], 'rank': [-1, len(leaderboard)]})
+            return
+        rank = leaderboard_find(username, leaderboard1) + 1
+        emit('leaderboards', {'leaderboard': leaderboard1[0:10], 'rank': [rank, len(leaderboard)]})
+    except:
+        emit('leaderboards', {'leaderboard': leaderboard1[0:10], 'rank': [-1, -1]})
 
 
 # TODO broken for some reason?

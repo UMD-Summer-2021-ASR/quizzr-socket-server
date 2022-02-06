@@ -34,7 +34,7 @@ class Game:
         self.rounds_num = lobby.settings["rounds"]  # total number of rounds
         self.questions_num = lobby.settings["questions_num"]  # questions per round
         self.tiebreaker = "random"  # method to break ties
-        self.buzz_time = 8  # time a player is given to answer after buzzing
+        self.buzz_time = 15  # time a player is given to answer after buzzing
         self.post_buzz_time = lobby.settings[
             "post_buzz_time"
         ]  # time after a question that a player can still buzz
@@ -137,6 +137,7 @@ class Game:
             self.answering_ids = (
                 []
             )  # answering_ids[i][j] = answer of round i, question j
+            self.recording_json = {}
 
             questions_ptr = 0
             for i in range(self.rounds_num):
@@ -444,27 +445,27 @@ class Game:
 
     # save game's buzz times into text
     def save_game(self):
-        recording_json = {}
-        recording_json["buzz_recording"] = self.buzz_recording
-        recording_json["settings"] = {}
-        recording_json["settings"]["gamemode"] = self.gamemode
-        recording_json["settings"]["rounds_num"] = self.rounds_num
-        recording_json["settings"]["questions_num"] = self.questions_num
-        recording_json["settings"]["tiebreaker"] = self.tiebreaker
-        recording_json["settings"]["buzz_time"] = self.buzz_time
-        recording_json["settings"]["post_buzz_time"] = self.post_buzz_time
-        recording_json["settings"]["gap_time"] = self.gap_time
-        recording_json["settings"]["teams"] = self.teams
-        recording_json["settings"]["players"] = self.players
-        recording_json["date"] = self.date
-        recording_json["questions"] = [
+
+        self.recording_json["buzz_recording"] = self.buzz_recording
+        self.recording_json["settings"] = {}
+        self.recording_json["settings"]["gamemode"] = self.gamemode
+        self.recording_json["settings"]["rounds_num"] = self.rounds_num
+        self.recording_json["settings"]["questions_num"] = self.questions_num
+        self.recording_json["settings"]["tiebreaker"] = self.tiebreaker
+        self.recording_json["settings"]["buzz_time"] = self.buzz_time
+        self.recording_json["settings"]["post_buzz_time"] = self.post_buzz_time
+        self.recording_json["settings"]["gap_time"] = self.gap_time
+        self.recording_json["settings"]["teams"] = self.teams
+        self.recording_json["settings"]["players"] = self.players
+        self.recording_json["date"] = self.date
+        self.recording_json["questions"] = [
             {"id": i[0], "qb_id": i[1]} for i in self.questions
         ]
 
-        recording_code = rd.database.add_recording(recording_json)
+        recording_code = rd.database.add_recording(self.recording_json)
         requests.post(
             os.environ.get("BACKEND_URL") + "/game",
-            json={"id": recording_code, "session": recording_json},
+            json={"id": recording_code, "session": self.recording_json},
         )
         print(
             "Recording of game "
